@@ -5,12 +5,12 @@ Name your repository using the following format:
 (Example: FL2025_Group_9)
 
 ## Team Members
-- **&lt;Member Name&gt;**: &lt;Email Address&gt; ; &lt;Github ID&gt;
-- **&lt;Member Name&gt;**: &lt;Email Address&gt; ; &lt;Github ID&gt;
-- **&lt;Member Name&gt;**: &lt;Email Address&gt; ; &lt;Github ID&gt;
+- **&lt;Andrew Cai&gt;**: &lt;andrew.cai@wustl.edu&gt; ; &lt;acai6304&gt;
+- **&lt;Prayag Vemulapalli&gt;**: &lt;p.c.vemulapalli@wustl.edu&gt; ; &lt;Github ID&gt;
+- **&lt;Anand Parekh&gt;**: &lt;a.d.parekh@wustl.edu&gt; ; &lt;Github ID&gt;
 
 ## TA
-&lt;Name of your group's TA&gt;
+&lt;Aman Verma&gt;
 
 ## Objectives
 &lt;Description of what your project is about, your key functionalities, tech stacks used, etc. &gt;
