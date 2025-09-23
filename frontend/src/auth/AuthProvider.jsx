@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from '../api/auth';
+import { useNavigate } from 'react-router-dom';
 
 // Overall file to manage authentication and user state for webapp using react context
 const AuthContext = createContext(null);
@@ -9,6 +10,7 @@ export function AuthProvider({ children }) {
     const [initializing, setInitializing] = useState(true);
     const [loginReady, setLoginReady] = useState(false);
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const navigate = useNavigate();
 
     // On app load, try to fetch current user using cookie
     useEffect(() => {
@@ -35,6 +37,7 @@ export function AuthProvider({ children }) {
                         await exchangeGoogleIdToken(credential); // sets cookie
                         const thisUser = await currentUser();
                         setUser(thisUser);
+                        navigate('/app');
                     } catch (e) {
                         console.error('Auth error:', e);
                         setUser(null);

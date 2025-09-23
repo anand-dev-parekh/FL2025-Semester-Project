@@ -9,14 +9,15 @@ import './App.css'
 export default function App() {
   const [count, setCount] = useState(0)
   return (
-    <AuthProvider>
-      <BrowserRouter>
+
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
