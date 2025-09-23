@@ -7,6 +7,8 @@ export function exchangeGoogleIdToken(idToken) {
         method: 'POST',
         body: { id_token: idToken },
     });
+
+    console.log(idToken);
 }
 
 export function currentUser() {
