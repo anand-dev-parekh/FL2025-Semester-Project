@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>User Profile • YourApp</title>
+  <!-- Link to your profile-specific stylesheet -->
+  <link rel="stylesheet" href="profile.css" />
+</head>
+<body>
+  <!-- Sticky page header -->
+  <header class="site-header" role="banner">
+    <div class="site-header__left">
+      <div class="avatar-wrap">
+        <img src="https://via.placeholder.com/96x96.png?text=👤" alt="User avatar" class="avatar" />
+        <label for="avatar" class="btn btn--ghost btn--sm">Change</label>
+        <input id="avatar" name="avatar" type="file" accept="image/*" class="sr-only" />
+      </div>
+
+      <div class="identity">
+        <h1 class="identity__name">Andrew Cai</h1>
+        <p class="identity__handle">@andrewc</p>
+
+        <div class="completion">
+          <div class="completion__bar" style="width:70%"></div>
+        </div>
+        <small class="muted">70% complete • finish your bio and 2FA</small>
+      </div>
+    </div>
+
+    <div class="site-header__right">
+      <span class="autosave">All changes saved</span>
+      <button class="btn btn--primary" type="submit" form="profile-form">Save changes</button>
+    </div>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="sidenav">
+    <a class="active" href="#basic-info">Profile</a>
+    <a href="#preferences">Preferences</a>
+    <a href="#notifications">Notifications</a>
+    <a href="#security">Security</a>
+    <a href="#privacy">Privacy</a>
+    <a href="#danger">Danger Zone</a>
+  </nav>
+
+  <!-- Profile form -->
+  <main class="container">
+    <form id="profile-form" action="#" method="post">
+      <!-- Basic Info -->
+      <section class="card" id="basic-info">
+        <header class="card__header">
+          <h2>Basic Info</h2>
+          <p class="muted">Your public profile details.</p>
+        </header>
+
+        <div class="grid grid--2">
+          <div class="field">
+            <label for="firstName">First name</label>
+            <input id="firstName" name="firstName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="lastName">Last name</label>
+            <input id="lastName" name="lastName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="displayName">Display name</label>
+            <input id="displayName" name="displayName" type="text" maxlength="40" />
+          </div>
+          <div class="field">
+            <label for="username">Username</label>
+            <div class="input-with-prefix">
+              <span class="prefix">@</span>
+              <input id="username" name="username" type="text" placeholder="yourhandle" required />
+            </div>
+          </div>
+          <div class="field field--full">
+            <label for="bio">Bio</label>
+            <textarea id="bio" name="bio" rows="3" maxlength="200"></textarea>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required />
+          </div>
+          <div class="field">
+            <label for="phone">Phone (optional)</label>
+            <input id="phone" name="phone" type="tel" />
+          </div>
+          <div class="field">
+            <label for="location">Location</label>
+            <input id="location" name="location" type="text" placeholder="City, Country" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Preferences -->
+      <section class="card" id="preferences">
+        <header class="card__header">
+          <h2>Preferences</h2>
+        </header>
+        <div class="grid grid--3">
+          <fieldset class="field">
+            <legend>Theme</legend>
+            <label><input type="radio" name="theme" value="light" checked /> Light</label>
+            <label><input type="radio" name="theme" value="dark" /> Dark</label>
+            <label><input type="radio" name="theme" value="system" /> System</label>
+          </fieldset>
+          <div class="field">
+            <label for="locale">Language</label>
+            <select id="locale" name="locale">
+              <option>English (US)</option>
+              <option>Español</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="timezone">Time zone</label>
+            <select id="timezone" name="timezone">
+              <option value="UTC">UTC</option>
+              <option value="America/New_York">New York</option>
+              <option value="America/Chicago">Chicago</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Notifications -->
+      <section class="card" id="notifications">
+        <header class="card__header">
+          <h2>Notifications</h2>
+        </header>
+        <div class="grid grid--2">
+          <fieldset class="field">
+            <legend>Channels</legend>
+            <label><input type="checkbox" checked /> Email</label>
+            <label><input type="checkbox" /> SMS</label>
+            <label><input type="checkbox" /> Push</label>
+          </fieldset>
+          <div class="field">
+            <label for="digest">Digest frequency</label>
+            <select id="digest" name="digest">
+              <option value="realtime">Real-time</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security -->
+      <section class="card" id="security">
+        <header class="card__header">
+          <h2>Security</h2>
+        </header>
+        <div class="grid grid--2">
+          <div class="field">
+            <label for="currentPassword">Current password</label>
+            <input id="currentPassword" name="currentPassword" type="password" />
+          </div>
+          <div class="field">
+            <label for="newPassword">New password</label>
+            <input id="newPassword" name="newPassword" type="password" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Privacy -->
+      <section class="card" id="privacy">
+        <header class="card__header">
+          <h2>Privacy & Visibility</h2>
+        </header>
+        <fieldset class="field">
+          <legend>Profile visibility</legend>
+          <label><input type="radio" name="visibility" value="public" checked /> Public</label>
+          <label><input type="radio" name="visibility" value="private" /> Private</label>
+        </fieldset>
+      </section>
+
+      <!-- Danger Zone -->
+      <section class="card card--danger" id="danger">
+        <header class="card__header">
+          <h2>Danger Zone</h2>
+        </header>
+        <div class="danger-item">
+          <p>Delete your account permanently.</p>
+          <button type="button" class="btn btn--danger">Delete account</button>
+        </div>
+      </section>
+    </form>
+  </main>
+</body>
+</html>
