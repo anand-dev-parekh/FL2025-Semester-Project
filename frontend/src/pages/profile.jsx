@@ -103,7 +103,7 @@ export default function Profile() {
               name="fullName"
               value={form.fullName}
               onChange={onChange}
-              placeholder="Ada Lovelace"
+              placeholder="Andrew Cai"
             />
             {errors.fullName && <em className="error">{errors.fullName}</em>}
           </label>
@@ -114,7 +114,7 @@ export default function Profile() {
               name="username"
               value={form.username}
               onChange={onChange}
-              placeholder="adal"
+              placeholder="andrew999"
             />
             {errors.username && <em className="error">{errors.username}</em>}
           </label>
@@ -126,7 +126,7 @@ export default function Profile() {
               type="email"
               value={form.email}
               onChange={onChange}
-              placeholder="ada@example.com"
+              placeholder="andrew@example.com"
             />
             {errors.email && <em className="error">{errors.email}</em>}
           </label>
