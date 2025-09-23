@@ -1,0 +1,54 @@
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; }
+body, h1, h2, h3, p { margin: 0; }
+body { font-family: Arial, sans-serif; background: #f7f9fc; color: #222; }
+
+/* Layout */
+.container { max-width: 900px; margin: 90px auto; padding: 0 20px; }
+.site-header { position: fixed; top: 0; left: 0; right: 0; background: #fff;
+  border-bottom: 1px solid #ddd; display: flex; justify-content: space-between;
+  align-items: center; padding: 10px 20px; }
+.sidenav { display: flex; gap: 10px; padding: 10px 20px; background: #fff; border-bottom: 1px solid #ddd; margin-top: 60px; }
+.sidenav a { text-decoration: none; color: #555; padding: 6px 10px; border-radius: 6px; }
+.sidenav a.active, .sidenav a:hover { background: #e5e7eb; color: #000; }
+
+/* Cards */
+.card { background: #fff; border: 1px solid #ddd; border-radius: 8px;
+  padding: 16px; margin: 20px 0; }
+.card__header h2 { margin-bottom: 6px; }
+.card--danger { border-color: #f87171; }
+
+/* Grid */
+.grid { display: grid; gap: 16px; }
+.grid--2 { grid-template-columns: repeat(2, 1fr); }
+.grid--3 { grid-template-columns: repeat(3, 1fr); }
+.field--full { grid-column: 1 / -1; }
+@media (max-width: 700px){ .grid--2, .grid--3 { grid-template-columns: 1fr; } }
+
+/* Form */
+.field { display: grid; gap: 6px; }
+label { font-weight: 600; }
+input, textarea, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+textarea { resize: vertical; }
+
+/* Buttons */
+.btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; }
+.btn--primary { background: #2563eb; color: #fff; }
+.btn--danger { background: #dc2626; color: #fff; }
+.btn--ghost { background: transparent; border: 1px solid #ccc; }
+.btn--sm { font-size: 0.85rem; padding: 4px 8px; }
+
+/* Avatar */
+.avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.avatar-wrap { display: flex; align-items: center; gap: 8px; }
+
+/* Completion bar */
+.completion { height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin: 4px 0; }
+.completion__bar { height: 100%; background: #2563eb; }
+
+/* Danger zone */
+.danger-item { display: flex; justify-content: space-between; align-items: center;
+  background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px; }
+
+/* Muted text */
+.muted { color: #6b7280; font-size: 0.9rem; }
