@@ -10,7 +10,6 @@ export function AuthProvider({ children }) {
     const [initializing, setInitializing] = useState(true);
     const [loginReady, setLoginReady] = useState(false);
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const navigate = useNavigate();
 
     // On app load, try to fetch current user using cookie
     useEffect(() => {
@@ -37,7 +36,6 @@ export function AuthProvider({ children }) {
                         await exchangeGoogleIdToken(credential); // sets cookie
                         const thisUser = await currentUser();
                         setUser(thisUser);
-                        navigate('/app');
                     } catch (e) {
                         console.error('Auth error:', e);
                         setUser(null);
