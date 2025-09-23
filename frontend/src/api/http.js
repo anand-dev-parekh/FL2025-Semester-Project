@@ -1,5 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+const API_BASE = import.meta.env.VITE_BACKEND_API_URL?? '';
 
+// Uniform helper function for http get requests to Flask backend
 export async function http(path, { method = 'GET', body, headers, ...rest } = {}) {
     const res = await fetch(`${API_BASE}${path}`, {
         method,
@@ -12,8 +13,7 @@ export async function http(path, { method = 'GET', body, headers, ...rest } = {}
         ...rest,
     });
 
-
-    // Optional unified error handling
+    // Handle errors
     if (!res.ok) {
         const text = await res.text().catch(() => '');
         const err = new Error(text || `HTTP ${res.status}`);
@@ -21,7 +21,6 @@ export async function http(path, { method = 'GET', body, headers, ...rest } = {}
         err.body = text;
         throw err;
     }
-
 
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) return res.json();
