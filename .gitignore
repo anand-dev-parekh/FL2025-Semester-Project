@@ -1,3 +1,4 @@
 *.env.local
 *.env
 Backend/venv
+.DS_Store
