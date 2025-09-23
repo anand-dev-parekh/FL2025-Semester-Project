@@ -14,8 +14,8 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         (async () => {
             try {
-                const currentUser = await currentUser();
-                setUser(currentUser);
+                const thisUser = await currentUser();
+                setUser(thisUser);
             } catch {
                 setUser(null);
             } finally {
@@ -33,13 +33,15 @@ export function AuthProvider({ children }) {
                 callback: async ({ credential }) => {
                     try {
                         await exchangeGoogleIdToken(credential); // sets cookie
-                        const currentUser = await currentUser();
-                        setUser(currentUser);
+                        const thisUser = await currentUser();
+                        setUser(thisUser);
                     } catch (e) {
                         console.error('Auth error:', e);
                         setUser(null);
                     }
                 },
+                auto_select: false, // Add here
+                cancel_on_tap_outside: false // Optional: prevents closing on outside click
             });
             setLoginReady(true);
         }
@@ -58,9 +60,11 @@ export function AuthProvider({ children }) {
             type: 'standard',
             theme: 'outline',
             size: 'large',
-            text: 'signin_with',
             shape: 'pill',
-            ...options,
+            text: 'signin_with',
+            logo_alignment: 'left',
+            width: '350',
+            ...options  // Allow overrides
         });
     };
 
