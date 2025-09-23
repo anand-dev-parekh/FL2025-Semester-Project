@@ -41,7 +41,6 @@ export function AuthProvider({ children }) {
                     }
                 },
             });
-            window.google.accounts.id.prompt();
             setLoginReady(true);
         }
 
