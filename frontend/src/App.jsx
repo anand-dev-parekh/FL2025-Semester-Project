@@ -1,14 +1,13 @@
 import { Routes, Route, NavLink } from "react-router-dom";
 
-// ⬇️ match your lowercase filenames exactly
 import Journal from "./pages/journal.jsx";
 import Profile from "./pages/profile.jsx";
 
 function Home() {
   return (
     <div style={{ padding: 24 }}>
-      <h1>Home renders ✅</h1>
-      <p>Use the tabs to open Journal or Profile.</p>
+      <h1>Welcome to the Magic Journal Landing Page!</h1>
+      <p>This is the main landing page for our journaling app.</p>
     </div>
   );
 }
