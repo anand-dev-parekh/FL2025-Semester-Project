@@ -4,8 +4,8 @@ import { AuthProvider } from './auth/AuthProvider';
 import ProtectedRoute from './auth/ProtectedRoute';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard_Test';
-import './App.css'
 import Profile from "./pages/profile"; 
+import './App.css'
 
 export default function App() {
   const [count, setCount] = useState(0)
