@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import "./Journal.css";
+import { useNavigate } from "react-router-dom";
+import styles from "./journal.module.css";
 
 const STORAGE_KEY = "habitsJournal:v1";
 
@@ -11,6 +12,8 @@ function todayISO() {
 }
 
 export default function JournalPage() {
+  const navigate = useNavigate();
+
   const [entries, setEntries] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -96,15 +99,22 @@ export default function JournalPage() {
     totalCount ? (todayEntries.reduce((s, e) => s + e.rating, 0) / totalCount).toFixed(1) : "-";
 
   return (
-    <div className="jrnl wrap">
-      <h1 className="jrnl title">Daily Habits Journal</h1>
+    <div className={styles.jrnl_wrap}>
+      <button
+        onClick={() => navigate("/app")}
+        style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}
+        className={`${styles.btn} ${styles.btn_subtle}`}
+      >
+        ← Home 
+      </button>
+      <h1 className={styles.jrnl_title}>Daily Habits Journal</h1>
 
       {/* Summary card */}
       <section className="jrnl card summary">
         <div className="summary-row">
           <div className="summary-metric">
             <div className="metric-label">Completion</div>
-            <div className="metric-value">{completion}%</div>
+            <div className={styles.metric_value}>{completion}%</div>
           </div>
           <div className="summary-metric">
             <div className="metric-label">Habits Today</div>
@@ -112,7 +122,7 @@ export default function JournalPage() {
           </div>
           <div className="summary-metric">
             <div className="metric-label">Avg Rating</div>
-            <div className="metric-value">{avgRating}</div>
+            <div className={styles.metric_value}>{avgRating}</div>
           </div>
         </div>
         <div className="progress">
@@ -121,7 +131,7 @@ export default function JournalPage() {
       </section>
 
       {/* Add form */}
-      <form onSubmit={addEntry} className="jrnl card form">
+      <form onSubmit={addEntry} className={`${styles.jrnl_card} ${styles.form}`}>
         <div className="grid-2">
           <label className="field">
             <span className="label">Date</span>
@@ -129,7 +139,7 @@ export default function JournalPage() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="input"
+              className={styles.input}
             />
           </label>
           <label className="field">
@@ -137,7 +147,7 @@ export default function JournalPage() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="input"
+              className={styles.input}
             >
               <option>Wellness</option>
               <option>Fitness</option>
@@ -156,7 +166,7 @@ export default function JournalPage() {
             value={habit}
             onChange={(e) => setHabit(e.target.value)}
             placeholder="e.g., 30-min run, read 20 pages"
-            className="input"
+            className={styles.input}
             required
           />
         </label>
@@ -170,7 +180,7 @@ export default function JournalPage() {
               max={5}
               value={rating}
               onChange={(e) => setRating(e.target.value)}
-              className="input"
+              className={styles.input}
             />
           </label>
           <label className="field">
@@ -179,18 +189,18 @@ export default function JournalPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="How did it go?"
-              className="input"
+              className={styles.input}
             />
           </label>
         </div>
 
         <div className="actions">
-          <button type="submit" className="btn primary">Add Entry</button>
+          <button type="submit" className={`${styles.btn} ${styles.btn_primary}`}>Add Entry</button>
         </div>
       </form>
 
       {/* Filters */}
-      <section className="jrnl card filters">
+      <section className={`${styles.jrnl_card} ${styles.filters}`}>
         <div className="grid-2">
           <label className="field">
             <span className="label">Filter by date</span>
@@ -198,7 +208,7 @@ export default function JournalPage() {
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              className="input"
+              className={styles.input}
             />
           </label>
 
@@ -208,7 +218,7 @@ export default function JournalPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search habit / category / notes…"
-              className="input"
+              className={styles.input}
             />
           </label>
         </div>
@@ -216,48 +226,49 @@ export default function JournalPage() {
 
       {/* List */}
       {grouped.length === 0 ? (
-        <p className="empty">No entries yet. Add your first habit above! ✨</p>
+        <p className={styles.empty}>No entries yet. Add your first habit above! ✨</p>
       ) : (
         grouped.map(([d, items]) => (
-          <section key={d} className="jrnl section">
-            <h3 className="date-heading">{d}</h3>
-            <ul className="list">
+          <section key={d} className={styles.jrnl_section}>
+            <h3 className={styles.jrnl_section_date_heading}>{d}</h3>
+            <ul className={styles.list}>
               {items.map((e) => (
-                <li key={e.id} className={`item ${e.done ? "done" : ""}`}>
-                  <div className="item-header">
-                    <label className="check">
+                <li key={e.id} className={`${styles.item}${e.done ? ` ${styles.item_done}` : ""}`}>
+                  <div className={styles.item_header}>
+                    <label className={styles.check}>
                       <input
                         type="checkbox"
                         checked={e.done}
                         onChange={() => toggleDone(e.id)}
                         aria-label="mark done"
+                        className={styles.check_input}
                       />
-                      <span className="custom-checkbox" />
+                      <span className={styles.custom_checkbox} />
                     </label>
 
-                    <div className="item-title">{e.habit}</div>
+                    <div className={styles.item_title}>{e.habit}</div>
 
-                    <span className={`chip chip-${slug(e.category)}`}>
+                    <span className={`${styles.chip} ${styles[`chip_${slug(e.category)}`] || ""}`}>
                       {e.category}
                     </span>
                   </div>
 
-                  <div className="item-meta">
-                    <span className="rating">Rating: {e.rating}/5</span>
-                    {e.notes && <span className="notes">• {e.notes}</span>}
+                  <div className={styles.item_meta}>
+                    <span className={styles.rating}>Rating: {e.rating}/5</span>
+                    {e.notes && <span className={styles.notes}>• {e.notes}</span>}
                   </div>
 
-                  <div className="item-actions">
+                  <div className={styles.item_actions}>
                     <button
                       onClick={() => toggleDone(e.id)}
-                      className="btn subtle"
+                      className={`${styles.btn} ${styles.btn_subtle}`}
                       type="button"
                     >
                       {e.done ? "Mark Undone" : "Mark Done"}
                     </button>
                     <button
                       onClick={() => removeEntry(e.id)}
-                      className="btn danger"
+                      className={`${styles.btn} ${styles.btn_danger}`}
                       type="button"
                     >
                       Delete

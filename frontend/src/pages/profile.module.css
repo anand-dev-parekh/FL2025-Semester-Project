@@ -1,10 +1,10 @@
 /* CSS Module version of profile.css. All selectors are now local to the Profile component. */
 .profile_container {
-  max-width: 960px;
+  max-width: 900px;
   margin: 2rem auto;
   padding: 1.25rem;
-  border: 1px solid #eee;
-  border-radius: 16px;
+  border: 1px solid #eaeaea;
+  border-radius: 14px;
   background: #fff;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
@@ -55,13 +55,19 @@
 .field { display: grid; gap: 6px; }
 .field_full { grid-column: 1 / -1; }
 
-.field input,
-.field textarea {
+.input, .field input, .field textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
+  padding: .6rem .75rem;
+  border: 1px solid #eaeaea;
   border-radius: 10px;
-  background: #fafafa;
+  background: #fff;
+  font-size: .95rem;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input:focus, .field input:focus, .field textarea:focus {
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.08);
 }
 
 .error { color: #b91c1c; font-size: 12px; }
@@ -70,8 +76,29 @@
 .switch { display: inline-flex; align-items: center; gap: 8px; }
 
 .actions { margin-top: 16px; display: flex; gap: 10px; }
-.btn { padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; background: #f6f6f6; cursor: pointer; }
-.btn_primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-.btn:hover { opacity: 0.95; }
+.btn {
+  border: 1px solid #eaeaea;
+  background: #fff;
+  padding: .55rem .9rem;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .04s ease, box-shadow .15s ease, background .15s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn_primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.btn_subtle {
+  background: #f8fafc;
+}
+.btn_danger {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
 
 @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }

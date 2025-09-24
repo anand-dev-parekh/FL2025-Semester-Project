@@ -78,6 +78,14 @@ export default function Profile() {
 
   return (
     <div className={styles.profile_container}>
+      <button
+        onClick={() => navigate("/app")}
+        style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}
+        className={`${styles.btn} ${styles.btn_subtle}`}
+      >
+        ← Home 
+      </button>
+
       <header className={styles.profile_header}>
         <div className={styles.avatar_wrap}>
           {form.avatarDataUrl ? (
@@ -106,6 +114,7 @@ export default function Profile() {
               value={form.fullName}
               onChange={onChange}
               placeholder="Andrew Cai"
+              className={styles.input}
             />
             {errors.fullName && <em className={styles.error}>{errors.fullName}</em>}
           </label>
@@ -117,6 +126,7 @@ export default function Profile() {
               value={form.username}
               onChange={onChange}
               placeholder="andrew999"
+              className={styles.input}
             />
             {errors.username && <em className={styles.error}>{errors.username}</em>}
           </label>
@@ -129,6 +139,7 @@ export default function Profile() {
               value={form.email}
               onChange={onChange}
               placeholder="andrew@example.com"
+              className={styles.input}
             />
             {errors.email && <em className={styles.error}>{errors.email}</em>}
           </label>
@@ -141,6 +152,7 @@ export default function Profile() {
               value={form.bio}
               onChange={onChange}
               placeholder="Tell us about yourself..."
+              className={styles.input}
             />
           </label>
         </div>
@@ -169,8 +181,7 @@ export default function Profile() {
 
         <div className={styles.actions}>
           <button type="submit" className={`${styles.btn} ${styles.btn_primary}`}>Save changes</button>
-          <button type="button" className={styles.btn} onClick={onReset}>Reset</button>
-          <button type="button" className={styles.btn} onClick={() => navigate('/app')}>Home</button>
+          <button type="button" className={`${styles.btn} ${styles.btn_subtle}`} onClick={onReset}>Reset</button>
         </div>
       </form>
     </div>

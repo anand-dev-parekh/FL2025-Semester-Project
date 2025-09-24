@@ -1,3 +1,4 @@
+/* CSS Module version of journal.css. All selectors are now local to the JournalPage component. */
 :root {
   --bg: #fafafa;
   --card: #ffffff;
@@ -13,13 +14,13 @@
   --radius: 14px;
 }
 
-.jrnl.wrap {
+.jrnl_wrap {
   max-width: 900px;
   margin: 0 auto;
   padding: 1rem;
 }
 
-.jrnl.title {
+.jrnl_title {
   font-size: 1.8rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -27,7 +28,7 @@
   color: var(--text);
 }
 
-.jrnl.card {
+.jrnl_card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -36,22 +37,22 @@
   margin-bottom: 1rem;
 }
 
-.summary .summary-row {
+.summary_row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: .75rem;
 }
-.summary .summary-metric {
+.summary_metric {
   background: #f8fafc;
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: .75rem;
 }
-.metric-label {
+.metric_label {
   font-size: .8rem;
   color: var(--muted);
 }
-.metric-value {
+.metric_value {
   font-size: 1.4rem;
   font-weight: 800;
   color: var(--text);
@@ -65,21 +66,21 @@
   margin-top: .75rem;
   border: 1px solid var(--border);
 }
-.progress-bar {
+.progress_bar {
   height: 100%;
   background: linear-gradient(90deg, var(--success), #22c55e);
 }
 
-.form .grid-2,
-.filters .grid-2 {
+.form_grid2,
+.filters_grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: .75rem;
 }
 @media (max-width: 640px) {
-  .form .grid-2,
-  .filters .grid-2,
-  .summary .summary-row {
+  .form_grid2,
+  .filters_grid2,
+  .summary_row {
     grid-template-columns: 1fr;
   }
 }
@@ -123,15 +124,15 @@
 .btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
 
-.btn.primary {
+.btn_primary {
   background: var(--primary);
   color: var(--primary-ink);
   border-color: var(--primary);
 }
-.btn.subtle {
+.btn_subtle {
   background: #f8fafc;
 }
-.btn.danger {
+.btn_danger {
   background: #fee2e2;
   border-color: #fecaca;
   color: #991b1b;
@@ -142,7 +143,7 @@
   padding: .5rem .25rem;
 }
 
-.jrnl.section .date-heading {
+.jrnl_section_date_heading {
   margin: .25rem 0 .6rem;
   font-size: 1.05rem;
   color: var(--muted);
@@ -165,22 +166,22 @@
   gap: .35rem;
   transition: background .2s ease;
 }
-.item.done {
+.item_done {
   background: #f0fdf4;
   border-color: #bbf7d0;
 }
 
-.item-header {
+.item_header {
   display: flex;
   align-items: center;
   gap: .6rem;
 }
-.item-title {
+.item_title {
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--text);
 }
-.item-meta {
+.item_meta {
   font-size: .9rem;
   color: var(--muted);
   display: flex;
@@ -188,7 +189,7 @@
   flex-wrap: wrap;
 }
 
-.item-actions {
+.item_actions {
   display: flex;
   gap: .5rem;
 }
@@ -201,13 +202,13 @@
   align-items: center;
   justify-content: center;
 }
-.check input {
+.check_input {
   position: absolute;
   inset: 0;
   opacity: 0;
   cursor: pointer;
 }
-.custom-checkbox {
+.custom_checkbox {
   width: 18px;
   height: 18px;
   border-radius: 6px;
@@ -215,13 +216,12 @@
   background: #fff;
   transition: all .15s ease;
 }
-.check input:checked + .custom-checkbox {
+.check_input:checked + .custom_checkbox {
   background: var(--success);
   border-color: var(--success);
   box-shadow: 0 0 0 3px rgba(22,163,74,0.12);
 }
 
-/* chips */
 .chip {
   margin-left: auto;
   padding: .15rem .6rem;
@@ -232,10 +232,10 @@
   color: #3730a3;
   font-weight: 700;
 }
-.chip-fitness { background: #ecfeff; color: #0e7490; }
-.chip-productivity { background: #f0f9ff; color: #075985; }
-.chip-learning { background: #f5f3ff; color: #6d28d9; }
-.chip-nutrition { background: #fef9c3; color: #92400e; }
-.chip-mindfulness { background: #fdf4ff; color: #86198f; }
-.chip-wellness { background: #e9ffe6; color: #166534; }
-.chip-other { background: #f3f4f6; color: #374151; }
+.chip_fitness { background: #ecfeff; color: #0e7490; }
+.chip_productivity { background: #f0f9ff; color: #075985; }
+.chip_learning { background: #f5f3ff; color: #6d28d9; }
+.chip_nutrition { background: #fef9c3; color: #92400e; }
+.chip_mindfulness { background: #fdf4ff; color: #86198f; }
+.chip_wellness { background: #e9ffe6; color: #166534; }
+.chip_other { background: #f3f4f6; color: #374151; }

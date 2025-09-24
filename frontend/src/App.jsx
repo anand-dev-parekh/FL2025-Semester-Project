@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthProvider';
 import ProtectedRoute from './auth/ProtectedRoute';
 import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard_Test';
+import Dashboard from './pages/Dashboard';
 import Profile from "./pages/profile"; 
 import Journal from "./pages/journal";
 import './App.css'
