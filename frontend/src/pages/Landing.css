@@ -1,0 +1,21 @@
+/* Remove ALL white backgrounds and borders */
+#buttonDiv,
+#buttonDiv > div,
+#buttonDiv > div > div,
+#buttonDiv > div > iframe {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* The actual Google button should keep its white background */
+#buttonDiv iframe {
+    border-radius: 24px !important;
+}
+
+/* Center the button */
+#buttonDiv {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+}

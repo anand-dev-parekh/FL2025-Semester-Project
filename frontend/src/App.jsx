@@ -1,34 +1,25 @@
-import { Routes, Route, NavLink } from "react-router-dom";
-
-import Journal from "./pages/journal.jsx";
-import Profile from "./pages/profile.jsx";
-
-function Home() {
-  return (
-    <div style={{ padding: 24 }}>
-      <h1>Welcome to the Magic Journal Landing Page!</h1>
-      <p>This is the main landing page for our journaling app.</p>
-    </div>
-  );
-}
+import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './auth/AuthProvider';
+import ProtectedRoute from './auth/ProtectedRoute';
+import Landing from './pages/Landing';
+import Dashboard from './pages/Dashboard_Test';
+import Profile from "./pages/profile"; 
+import './App.css'
 
 export default function App() {
+  const [count, setCount] = useState(0)
   return (
-    <>
-      {/* simple nav */}
-      <nav style={{ padding: 12, borderBottom: "1px solid #eee", display: "flex", gap: 12 }}>
-        <NavLink to="/" end>Home</NavLink>
-        <NavLink to="/journal">Journal</NavLink>
-        <NavLink to="/profile">Profile</NavLink>
-      </nav>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/journal" element={<Journal />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </div>
-    </>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
