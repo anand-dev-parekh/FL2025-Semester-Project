@@ -1,11 +1,13 @@
 // frontend/src/pages/Profile.jsx
 import React, { useState, useEffect } from "react";
 import styles from "./profile.module.css";
+import { useNavigate } from 'react-router-dom';
 
 // Local demo storage (replace with real API later)j
 const STORAGE_KEY = "profile_demo_v1";
 
 export default function Profile() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: "",
     username: "",
@@ -168,6 +170,7 @@ export default function Profile() {
         <div className={styles.actions}>
           <button type="submit" className={`${styles.btn} ${styles.btn_primary}`}>Save changes</button>
           <button type="button" className={styles.btn} onClick={onReset}>Reset</button>
+          <button type="button" className={styles.btn} onClick={() => navigate('/app')}>Home</button>
         </div>
       </form>
     </div>
