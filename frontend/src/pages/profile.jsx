@@ -1,11 +1,13 @@
 // frontend/src/pages/Profile.jsx
 import React, { useState, useEffect } from "react";
-import "./Profile.css";
+import styles from "./profile.module.css";
+import { useNavigate } from 'react-router-dom';
 
 // Local demo storage (replace with real API later)j
 const STORAGE_KEY = "profile_demo_v1";
 
 export default function Profile() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: "",
     username: "",
@@ -75,51 +77,61 @@ export default function Profile() {
   };
 
   return (
-    <div className="profile-container">
-      <header className="profile-header">
-        <div className="avatar-wrap">
+    <div className={styles.profile_container}>
+      <button
+        onClick={() => navigate("/app")}
+        style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}
+        className={`${styles.btn} ${styles.btn_subtle}`}
+      >
+        ← Home 
+      </button>
+
+      <header className={styles.profile_header}>
+        <div className={styles.avatar_wrap}>
           {form.avatarDataUrl ? (
-            <img className="avatar" src={form.avatarDataUrl} alt="avatar" />
+            <img className={styles.avatar} src={form.avatarDataUrl} alt="avatar" />
           ) : (
-            <div className="avatar placeholder" aria-label="default avatar">🧑</div>
+            <div className={styles.avatar_placeholder} aria-label="default avatar">🧑</div>
           )}
-          <label className="avatar-upload">
+          <label className={styles.avatar_upload}>
             <input type="file" accept="image/*" onChange={onAvatarChange} />
             Change photo
           </label>
         </div>
 
         <div>
-          <h1 className="title">Your Profile</h1>
-          <p className="subtitle">Manage your info and preferences.</p>
+          <h1 className={styles.title}>Your Profile</h1>
+          <p className={styles.subtitle}>Manage your info and preferences.</p>
         </div>
       </header>
 
-      <form className="profile-form" onSubmit={onSubmit} noValidate>
-        <div className="grid">
-          <label className="field">
+      <form className={styles.profile_form} onSubmit={onSubmit} noValidate>
+        <div className={styles.grid}>
+          <label className={styles.field}>
             <span>Full name</span>
             <input
               name="fullName"
               value={form.fullName}
               onChange={onChange}
               placeholder="Andrew Cai"
+              className={styles.input}
             />
-            {errors.fullName && <em className="error">{errors.fullName}</em>}
+            {errors.fullName && <em className={styles.error}>{errors.fullName}</em>}
           </label>
 
-          <label className="field">
+          <label className={styles.field}>
             <span>Username</span>
             <input
               name="username"
               value={form.username}
               onChange={onChange}
               placeholder="andrew999"
+              className={styles.input}
             />
-            {errors.username && <em className="error">{errors.username}</em>}
+            {errors.username && <em className={styles.error}>{errors.username}</em>}
           </label>
 
-          <label className="field">
+          <label className={styles.field}>
             <span>Email</span>
             <input
               name="email"
@@ -127,11 +139,12 @@ export default function Profile() {
               value={form.email}
               onChange={onChange}
               placeholder="andrew@example.com"
+              className={styles.input}
             />
-            {errors.email && <em className="error">{errors.email}</em>}
+            {errors.email && <em className={styles.error}>{errors.email}</em>}
           </label>
 
-          <label className="field full">
+          <label className={`${styles.field} ${styles.field_full}`}>
             <span>Bio</span>
             <textarea
               name="bio"
@@ -139,12 +152,13 @@ export default function Profile() {
               value={form.bio}
               onChange={onChange}
               placeholder="Tell us about yourself..."
+              className={styles.input}
             />
           </label>
         </div>
 
-        <div className="prefs">
-          <label className="switch">
+        <div className={styles.prefs}>
+          <label className={styles.switch}>
             <input
               type="checkbox"
               name="darkMode"
@@ -154,7 +168,7 @@ export default function Profile() {
             <span>Dark mode</span>
           </label>
 
-          <label className="switch">
+          <label className={styles.switch}>
             <input
               type="checkbox"
               name="notifications"
@@ -165,9 +179,9 @@ export default function Profile() {
           </label>
         </div>
 
-        <div className="actions">
-          <button type="submit" className="btn primary">Save changes</button>
-          <button type="button" className="btn" onClick={onReset}>Reset</button>
+        <div className={styles.actions}>
+          <button type="submit" className={`${styles.btn} ${styles.btn_primary}`}>Save changes</button>
+          <button type="button" className={`${styles.btn} ${styles.btn_subtle}`} onClick={onReset}>Reset</button>
         </div>
       </form>
     </div>
