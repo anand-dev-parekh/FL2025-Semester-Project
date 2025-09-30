@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from '../api/auth';
-import { useNavigate } from 'react-router-dom';
 
 // Overall file to manage authentication and user state for webapp using react context
 const AuthContext = createContext(null);
@@ -42,7 +41,11 @@ export function AuthProvider({ children }) {
                     }
                 },
                 auto_select: false, // Add here
-                cancel_on_tap_outside: false // Optional: prevents closing on outside click
+                cancel_on_tap_outside: false, // Optional: prevents closing on outside click
+                // GIS will POST the token to this URL instead of postMessage
+                login_uri: 'http://localhost:5000/api/auth/google',
+                // Optional: mitigate 3rd-party cookie issues
+                itp_support: true,
             });
             setLoginReady(true);
         }
