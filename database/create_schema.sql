@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   id           BIGSERIAL PRIMARY KEY,
   oauth_id     TEXT UNIQUE,
   email        TEXT UNIQUE,
+  name         TEXT,
+  bio          TEXT,
   level        INTEGER NOT NULL DEFAULT 1,
   streak       INTEGER NOT NULL DEFAULT 0,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -42,6 +44,7 @@ CREATE TABLE IF NOT EXISTS goals (
   habit_id     BIGINT NOT NULL REFERENCES habits(id) ON DELETE RESTRICT,
   goal_text    TEXT NOT NULL,
   xp           INTEGER NOT NULL DEFAULT 0,
+  completed    BOOLEAN NOT NULL DEFAULT FALSE,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 -- Helpful FKs indexes (Postgres doesn’t auto-index FKs)
