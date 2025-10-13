@@ -4,6 +4,9 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from routes.auth import auth_blueprint
+from routes.user import user_blueprint
+from routes.habit import habit_blueprint 
+from routes.goal import goal_blueprint
 
 # -----------------------------
 # Config
@@ -17,7 +20,7 @@ def create_app():
     frontend_origin = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     app.config["GOOGLE_OAUTH_CLIENT_ID"] = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=1)
 
     # Secure cookie settings
     app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -30,8 +33,8 @@ def create_app():
         app,
         resources={r"/api/*": {"origins": [frontend_origin]}},
         supports_credentials=True,
-        allow_headers=["Content-Type"],
-        methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
     )
 
 
@@ -40,6 +43,9 @@ def create_app():
         return jsonify({"ok": True}), 200
 
     app.register_blueprint(auth_blueprint)
+    app.register_blueprint(user_blueprint)
+    app.register_blueprint(habit_blueprint)
+    app.register_blueprint(goal_blueprint)
 
     return app
 
