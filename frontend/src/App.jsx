@@ -2,8 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
-import Profile from "./pages/profile";
-import Journal from "./pages/journal";
+import Profile from "./pages/Profile";
+import Journal from "./pages/Journal";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
 export default function App() {
