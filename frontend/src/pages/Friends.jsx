@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -9,6 +8,7 @@ import {
   removeFriend,
   sendFriendRequest,
 } from "../api/friends";
+import AuthNavbar from "../components/AuthNavbar";
 
 const baseCard =
   "rounded-3xl border border-white/60 bg-white/80 p-6 shadow-md backdrop-blur-md transition-colors duration-500 dark:border-slate-800/60 dark:bg-slate-900/70";
@@ -18,9 +18,6 @@ const primaryButton =
 
 const secondaryButton =
   "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:text-slate-200";
-
-const buttonBase =
-  "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
 
 function formatDate(value) {
   if (!value) return "";
@@ -50,7 +47,6 @@ export default function Friends() {
   const [emailInput, setEmailInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [processingId, setProcessingId] = useState(null);
-  const navigate = useNavigate();
 
   const hasPending = useMemo(() => !!incoming.length || !!outgoing.length, [incoming.length, outgoing.length]);
 
@@ -170,22 +166,21 @@ export default function Friends() {
 
   if (loading) {
     return (
-      <main className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-slate-600 dark:text-slate-300">Loading your social circle…</p>
-      </main>
+      <>
+        <AuthNavbar />
+        <main className="flex flex-1 items-center justify-center">
+          <p className="text-sm text-slate-600 dark:text-slate-300">Loading your social circle…</p>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="flex-1 space-y-8">
+    <>
+      <AuthNavbar />
+      <main className="flex-1 space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <button
-            onClick={() => navigate("/app")}
-            className={`${buttonBase} absolute left-0 top-0 border border-emerald-200/60 bg-white/80 text-emerald-800 hover:bg-emerald-50/80 dark:border-emerald-700/40 dark:bg-slate-900/70 dark:text-emerald-200 dark:hover:bg-slate-900`}
-          >
-            ← Home
-          </button>
           <h2 className="text-4xl font-semibold text-emerald-900 dark:text-emerald-300">Friends</h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             Connect with friends to stay motivated and celebrate wins together.
@@ -363,5 +358,6 @@ export default function Friends() {
         )}
       </section>
     </main>
+    </>
   );
 }
