@@ -30,6 +30,8 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [submitNotice, setSubmitNotice] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const updateThemePreference = (next) => {
     const candidate = typeof next === "string" ? next.toLowerCase() : "system";
@@ -75,6 +77,8 @@ export default function Profile() {
     e.preventDefault();
     if (!validate()) return;
 
+    setSubmitError("");
+    setSubmitNotice("");
     setSaving(true);
     try {
       const saved = await http("/api/user/me", {
@@ -101,10 +105,10 @@ export default function Profile() {
       } catch (refreshErr) {
         console.error(refreshErr);
       }
-      alert("Profile saved.");
+      setSubmitNotice("Profile saved.");
     } catch (err) {
       console.error(err);
-      alert("Failed to save profile.");
+      setSubmitError("Failed to save profile.");
     } finally {
       setSaving(false);
     }
@@ -162,7 +166,7 @@ export default function Profile() {
     <>
       <AuthNavbar />
       <div className="relative flex-1 pb-12">
-        <header className="space-y-3">
+        <header>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-4xl font-semibold text-emerald-900 dark:text-emerald-200">
               Your Profile
@@ -177,10 +181,25 @@ export default function Profile() {
               {toggleLabel}
             </button>
           </div>
-          <p className="max-w-md text-sm text-slate-600 dark:text-slate-300">
+          <p className="mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
             Manage your account details.
           </p>
         </header>
+
+        {(submitError || submitNotice) && (
+          <div className="mt-6 space-y-2">
+            {submitError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/20 dark:text-rose-100">
+                {submitError}
+              </div>
+            ) : null}
+            {submitNotice ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/20 dark:text-emerald-100">
+                {submitNotice}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <main className={`${cardClasses} mt-8`}>
           {loading ? (
