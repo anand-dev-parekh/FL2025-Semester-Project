@@ -1,7 +1,7 @@
 // frontend/src/pages/Habits.jsx
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { http } from "../api/http"; // your helper
+import AuthNavbar from "../components/AuthNavbar";
 
 const cardClasses =
   "rounded-3xl border border-white/60 bg-white/80 p-8 shadow-xl backdrop-blur-md transition-colors duration-500 dark:border-slate-800/70 dark:bg-slate-900/70";
@@ -11,8 +11,6 @@ const buttonBase =
   "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
 
 export default function HabitsPage() {
-  const navigate = useNavigate();
-
   // server state
   const [habits, setHabits] = useState([]);
   const [goals, setGoals] = useState([]);
@@ -165,18 +163,17 @@ export default function HabitsPage() {
   const totalXp = filtered.reduce((acc, g) => acc + (g.xp || 0), 0);
 
   return (
-    <div className="relative flex-1 pb-16">
-      <button
-        onClick={() => navigate("/app")}
-        className={`${buttonBase} absolute left-0 top-0 border border-emerald-200/60 bg-white/80 text-emerald-800 hover:bg-emerald-50/80 dark:border-emerald-700/40 dark:bg-slate-900/70 dark:text-emerald-200 dark:hover:bg-slate-900`}
-      >
-        ← Home
-      </button>
-
-      <h1 className="mt-16 text-4xl font-semibold text-emerald-900 dark:text-emerald-200">Your Goals</h1>
-      <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-        Create goals tied to habits, track XP, and keep moving forward.
-      </p>
+    <>
+      <AuthNavbar />
+      <main className="flex-1 space-y-8">
+      <header>
+         <div>
+          <h2 className="text-4xl font-semibold text-emerald-900 dark:text-emerald-300">Your Habits and Goals</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          Create goals tied to habits, track XP, and keep moving forward.
+          </p>
+        </div>
+      </header>
 
       {/* Summary */}
       <section className={`${cardClasses} mt-10`}>
@@ -311,7 +308,8 @@ export default function HabitsPage() {
           </section>
         ))
       )}
-    </div>
+      </main>
+    </>
   );
 }
 
