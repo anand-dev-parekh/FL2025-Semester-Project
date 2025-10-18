@@ -434,7 +434,7 @@ export default function Onboarding() {
                 </label>
               </div>
 
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
                 <button
                   type="button"
                   onClick={handleAddGoal}
@@ -443,7 +443,7 @@ export default function Onboarding() {
                 >
                   {goalSaving ? "Adding…" : "Add goal"}
                 </button>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400 md:leading-tight">
                   You can add up to three goals now and create more later from the Habits page.
                 </p>
               </div>
