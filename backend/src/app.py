@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from datetime import timedelta
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -7,6 +8,11 @@ from routes.auth import auth_blueprint
 from routes.user import user_blueprint
 from routes.habit import habit_blueprint 
 from routes.goal import goal_blueprint
+
+# Load environment variables first (.env, then .env.local override)
+ENV_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ENV_ROOT / ".env")
+load_dotenv(ENV_ROOT / ".env.local")
 
 # -----------------------------
 # Config
@@ -50,7 +56,5 @@ def create_app():
     return app
 
 if __name__ == "__main__":
-
-    load_dotenv()
     app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=True)
