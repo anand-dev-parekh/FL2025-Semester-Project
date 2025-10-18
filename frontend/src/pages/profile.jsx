@@ -13,7 +13,7 @@ const buttonBase =
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, refreshUser } = useAuth();
 
   const [form, setForm] = useState({
     fullName: "",
@@ -77,6 +77,11 @@ export default function Profile() {
         email: saved.email ?? f.email,
         bio: saved.bio ?? f.bio,
       }));
+      try {
+        await refreshUser();
+      } catch (refreshErr) {
+        console.error(refreshErr);
+      }
       alert("Profile saved.");
     } catch (err) {
       console.error(err);

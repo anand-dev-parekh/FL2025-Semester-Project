@@ -33,18 +33,22 @@ def auth_google():
     try:
         with conn.cursor() as cursor:
             # Check if user already exists
-            cursor.execute("SELECT id, oauth_id, email, level, streak FROM users WHERE oauth_id = %s", (oauth_id,))
-            row = cursor.fetchone()
-            if row:
-                user_id, _, _, _, _= row
-            else:
+            cursor.execute("""
+                SELECT id, oauth_id, email, name, bio, level, streak, onboarding_complete
+                FROM users
+                WHERE oauth_id = %s
+            """, (oauth_id,))
+            db_user = cursor.fetchone()
+
+            if not db_user:
                 # Insert new user
                 cursor.execute("""
                     INSERT INTO users (oauth_id, email, name, bio, level, streak)
                     VALUES (%s, %s, %s, %s, 1, 0)
-                    RETURNING id
-                """, (oauth_id, email, name, ''))
-                user_id = cursor.fetchone()[0]
+                    RETURNING id, oauth_id, email, name, bio, level, streak, onboarding_complete
+                """, (oauth_id, email, name, ""))
+                db_user = cursor.fetchone()
+
             # Commit changes
             conn.commit()
 
@@ -58,15 +62,19 @@ def auth_google():
     session.clear()
     session.permanent = True
 
-    session["user"] = {
-        "id": user_id,
-        "oauth_id": oauth_id,
-        "email": email,
-        "name": name,
-        "level": row[3] if row else 1,
-        "streak": row[4] if row else 0,
+    user_payload = {
+        "id": db_user[0],
+        "oauth_id": db_user[1],
+        "email": db_user[2],
+        "name": db_user[3],
+        "bio": db_user[4],
+        "level": db_user[5],
+        "streak": db_user[6],
+        "onboarding_complete": db_user[7],
         "picture": picture,
     }
+
+    session["user"] = user_payload
 
     return jsonify(session["user"]), 200
 

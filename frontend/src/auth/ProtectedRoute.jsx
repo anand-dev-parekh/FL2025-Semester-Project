@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 
 function FullPageSpinner() {
@@ -13,9 +13,19 @@ function FullPageSpinner() {
     );
 }
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, allowIncomplete = false }) {
     const { user, initializing } = useAuth();
+    const location = useLocation();
+
+    const needsOnboarding = !user?.onboarding_complete;
+
     if (initializing) return <FullPageSpinner />;
     if (!user) return <Navigate to="/" replace />;
+    if (!allowIncomplete && needsOnboarding) {
+        return <Navigate to="/onboarding" replace state={{ from: location }} />;
+    }
+    if (allowIncomplete && !needsOnboarding) {
+        return <Navigate to="/app" replace />;
+    }
     return children;
 }

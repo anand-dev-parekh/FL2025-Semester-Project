@@ -38,6 +38,7 @@ def get_goals():
                 "xp": r[2],
                 "completed": r[3],
                 "created_at": r[4].isoformat() if r[4] else None,
+                "habit_id": r[5],
                 "habit": {
                     "id": r[5],
                     "name": r[6],
@@ -105,6 +106,7 @@ def create_goal():
             "xp": r[2],
             "completed": r[3],
             "created_at": r[4].isoformat() if r[4] else None,
+            "habit_id": r[5],
             "habit": {"id": r[5], "name": r[6], "description": r[7]},
         }
         return jsonify(goal), 201
@@ -190,6 +192,7 @@ def update_goal(goal_id):
             "xp": xp_out,
             "completed": completed_out,
             "created_at": created_at_out.isoformat() if created_at_out else None,
+            "habit_id": h[0] if h else habit_id_out,
             "habit": {
                 "id": h[0],
                 "name": h[1],
