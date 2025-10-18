@@ -8,7 +8,9 @@ export default function Landing() {
   const buttonRef = useRef(null);
 
   useEffect(() => {
-    if (user) navigate("/app", { replace: true });
+    if (!user) return;
+    const destination = user.onboarding_complete ? "/app" : "/onboarding";
+    navigate(destination, { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {
