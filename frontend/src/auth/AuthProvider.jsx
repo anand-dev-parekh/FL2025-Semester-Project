@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from '../api/auth';
 import { AuthContext } from "./AuthContext";
+import { useTheme } from "../theme/useTheme";
 
 // Overall file to manage authentication and user state for webapp using react context
 export function AuthProvider({ children }) {
@@ -8,6 +9,7 @@ export function AuthProvider({ children }) {
     const [initializing, setInitializing] = useState(true);
     const [loginReady, setLoginReady] = useState(false);
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const { setPreference: setThemePreference } = useTheme();
 
     // On app load, try to fetch current user using cookie
     useEffect(() => {
@@ -99,6 +101,16 @@ export function AuthProvider({ children }) {
         () => ({ user, loginReady, initializing, renderGoogleButton, logout, refreshUser, setUser }),
         [user, loginReady, initializing, renderGoogleButton, logout, refreshUser, setUser]
     );
+
+    const userThemePreference = user?.theme_preference;
+
+    useEffect(() => {
+        if (userThemePreference) {
+            setThemePreference(userThemePreference);
+        } else {
+            setThemePreference("system");
+        }
+    }, [userThemePreference, setThemePreference]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -14,7 +14,7 @@ def get_user():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, oauth_id, email, name, bio, level, streak, created_at, onboarding_complete
+                SELECT id, oauth_id, email, name, bio, level, streak, created_at, onboarding_complete, theme_preference
                 FROM users
                 WHERE id = %s
             """, (user["id"],))
@@ -31,6 +31,7 @@ def get_user():
                 "streak": row[6],
                 "created_at": row[7].isoformat() if row[7] else None,
                 "onboarding_complete": row[8],
+                "theme_preference": row[9],
             }
             return jsonify(user)
     finally:
@@ -62,6 +63,13 @@ def update_user():
             return jsonify({"error": "onboarding_complete must be a boolean"}), 400
         updates["onboarding_complete"] = oc
 
+    if "theme_preference" in data:
+        pref = (data.get("theme_preference") or "").strip().lower()
+        allowed = {"light", "dark", "system"}
+        if pref not in allowed:
+            return jsonify({"error": "theme_preference must be 'light', 'dark', or 'system'"}), 400
+        updates["theme_preference"] = pref
+
     if not updates:
         return jsonify({"error": "No fields to update"}), 400
 
@@ -76,7 +84,7 @@ def update_user():
                     UPDATE users
                     SET {fields}
                     WHERE id = %s
-                    RETURNING id, oauth_id, email, name, bio, level, streak, created_at, onboarding_complete
+                    RETURNING id, oauth_id, email, name, bio, level, streak, created_at, onboarding_complete, theme_preference
                     """,
                     params,
                 )
@@ -93,6 +101,7 @@ def update_user():
                     "streak": row[6],
                     "created_at": row[7].isoformat() if row[7] else None,
                     "onboarding_complete": row[8],
+                    "theme_preference": row[9],
                 }
                 # Keep session in sync so subsequent /auth/me reflects changes
                 if "user" in session:
@@ -102,6 +111,7 @@ def update_user():
                             "name": updated_user["name"],
                             "bio": updated_user["bio"],
                             "onboarding_complete": updated_user["onboarding_complete"],
+                            "theme_preference": updated_user["theme_preference"],
                         },
                     }
                 return jsonify(updated_user)

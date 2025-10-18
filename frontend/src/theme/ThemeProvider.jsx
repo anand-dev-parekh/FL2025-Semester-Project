@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ThemeContext } from "./ThemeContext";
 
 function getSystemTheme() {
@@ -8,8 +8,25 @@ function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function normalizePreference(value) {
+  const next = typeof value === "string" ? value.toLowerCase() : "system";
+  if (next === "light" || next === "dark") {
+    return next;
+  }
+  return "system";
+}
+
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(getSystemTheme);
+  const [preference, setPreferenceState] = useState("system");
+  const [theme, setTheme] = useState(() => getSystemTheme());
+
+  useEffect(() => {
+    if (preference === "system") {
+      setTheme(getSystemTheme());
+      return;
+    }
+    setTheme(preference);
+  }, [preference]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -19,22 +36,19 @@ export function ThemeProvider({ children }) {
   }, [theme]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || preference !== "system") return;
 
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = (isDark) => {
-      setTheme((prev) => {
-        const next = isDark ? "dark" : "light";
-        return prev === next ? prev : next;
-      });
+    const apply = (matches) => {
+      setTheme(matches ? "dark" : "light");
     };
 
-    applyTheme(media.matches);
+    apply(media.matches);
 
     const handler = (event) => {
       const matches =
         typeof event?.matches === "boolean" ? event.matches : media.matches;
-      applyTheme(matches);
+      apply(matches);
     };
 
     if (typeof media.addEventListener === "function") {
@@ -48,13 +62,35 @@ export function ThemeProvider({ children }) {
     }
 
     return undefined;
+  }, [preference]);
+
+  const setPreference = useCallback((nextPreference) => {
+    const normalized = normalizePreference(nextPreference);
+    setPreferenceState((prev) => (prev === normalized ? prev : normalized));
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setPreferenceState((prev) => {
+      if (prev === "dark") return "light";
+      if (prev === "light") return "dark";
+      return theme === "dark" ? "light" : "dark";
+    });
+  }, [theme]);
+
+  const useSystemTheme = useCallback(() => {
+    setPreferenceState("system");
   }, []);
 
   const value = useMemo(
     () => ({
       theme,
+      preference,
+      setPreference,
+      toggleTheme,
+      useSystemTheme,
+      isSystemTheme: preference === "system",
     }),
-    [theme],
+    [theme, preference, setPreference, toggleTheme, useSystemTheme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

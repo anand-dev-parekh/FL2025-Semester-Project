@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
   level        INTEGER NOT NULL DEFAULT 1,
   streak       INTEGER NOT NULL DEFAULT 0,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE
+  onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE,
+  theme_preference TEXT NOT NULL DEFAULT 'system' CHECK (theme_preference IN ('system','light','dark'))
 );
 
 CREATE TABLE IF NOT EXISTS habits (

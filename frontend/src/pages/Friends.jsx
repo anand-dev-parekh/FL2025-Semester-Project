@@ -181,7 +181,7 @@ export default function Friends() {
       <main className="flex-1 space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-4xl font-semibold text-emerald-900 dark:text-emerald-300">Friends</h2>
+          <h2 className="text-4xl font-semibold text-emerald-900 dark:text-emerald-300">Your Friends</h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             Connect with friends to stay motivated and celebrate wins together.
           </p>
@@ -223,7 +223,7 @@ export default function Friends() {
             className={`${primaryButton} border border-emerald-200/70 bg-emerald-200/70 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/60 dark:hover:bg-emerald-500/40`}
             disabled={submitting}
           >
-            {submitting ? "Sending…" : "Send request"}
+            {submitting ? "Sending…" : "Send"}
           </button>
         </form>
       </section>
