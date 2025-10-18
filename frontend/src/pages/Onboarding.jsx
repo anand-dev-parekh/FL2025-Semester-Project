@@ -106,7 +106,7 @@ export default function Onboarding() {
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setHabitsError("We couldn’t load habit ideas right now. You can add goals later from the Journal page.");
+          setHabitsError("We couldn’t load habit ideas right now. You can add goals later from the Habits page.");
         }
       } finally {
         if (!cancelled) setHabitsLoading(false);
@@ -163,7 +163,7 @@ export default function Onboarding() {
   const handleAddGoal = async () => {
     if (goalSaving) return;
     if (goals.length >= 3) {
-      setGoalError("Let’s start with up to three goals. You can add more later from the Journal page.");
+      setGoalError("Let’s start with up to three goals. You can add more later from the Habits page.");
       return;
     }
     if (!habits.length) {
@@ -444,13 +444,13 @@ export default function Onboarding() {
                   {goalSaving ? "Adding…" : "Add goal"}
                 </button>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  You can add up to three goals now and create more later from the Journal.
+                  You can add up to three goals now and create more later from the Habits page.
                 </p>
               </div>
             </div>
           ) : (
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              We don’t have shared habits available yet. You can head to the Journal page later to
+              We don’t have shared habits available yet. You can head to the Habits page later to
               add your own habits and goals.
             </p>
           )}
