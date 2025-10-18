@@ -1,4 +1,4 @@
-// frontend/src/pages/JournalPage.jsx
+// frontend/src/pages/Habits.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { http } from "../api/http"; // your helper
@@ -10,7 +10,7 @@ const inputClasses =
 const buttonBase =
   "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
 
-export default function JournalPage() {
+export default function HabitsPage() {
   const navigate = useNavigate();
 
   // server state
