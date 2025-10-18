@@ -21,6 +21,7 @@ export default function AuthNavbar() {
 
   const links = [
     { to: "/habits", label: "Habits" },
+    { to: "", label: "Journal" },
     { to: "/friends", label: "Friends" },
     { to: "/profile", label: "Profile" },
   ];
