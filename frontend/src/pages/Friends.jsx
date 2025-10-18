@@ -37,6 +37,48 @@ function uniqById(items) {
   });
 }
 
+function getErrorMessage(error, fallbackMessage) {
+  const fallback = fallbackMessage || "Something went wrong.";
+  if (!error) return fallback;
+
+  const raw = error.body ?? error.message ?? error.error ?? error;
+  if (typeof raw === "string") {
+    const text = raw.trim();
+    if (!text) return fallback;
+
+    const looksJson =
+      (text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"));
+    if (looksJson) {
+      try {
+        const data = JSON.parse(text);
+        if (typeof data === "string" && data.trim()) return data.trim();
+        if (data && typeof data === "object") {
+          if (typeof data.error === "string" && data.error.trim()) return data.error.trim();
+          if (typeof data.message === "string" && data.message.trim()) return data.message.trim();
+        }
+      } catch {
+        // Ignored — fall back to returning the raw text.
+      }
+    }
+
+    return text;
+  }
+
+  if (typeof raw === "object" && raw !== null) {
+    if (typeof raw.error === "string" && raw.error.trim()) return raw.error.trim();
+    if (typeof raw.message === "string" && raw.message.trim()) return raw.message.trim();
+    try {
+      const serialized = JSON.stringify(raw);
+      return serialized || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  const stringified = String(raw ?? "");
+  return stringified.trim() || fallback;
+}
+
 export default function Friends() {
   const [friends, setFriends] = useState([]);
   const [incoming, setIncoming] = useState([]);
@@ -58,7 +100,7 @@ export default function Friends() {
       setOutgoing(requestSummary?.outgoing || []);
       setError("");
     } catch (err) {
-      const message = err?.body || err?.message || "Unable to load friends right now.";
+      const message = getErrorMessage(err, "Unable to load friends right now.");
       setError(message);
     } finally {
       setLoading(false);
@@ -90,7 +132,7 @@ export default function Friends() {
       setEmailInput("");
       await fetchData();
     } catch (err) {
-      const message = err?.body || err?.message || "Unable to send friend request.";
+      const message = getErrorMessage(err, "Unable to send friend request.");
       setError(message);
     } finally {
       setSubmitting(false);
@@ -108,7 +150,7 @@ export default function Friends() {
       }
       setIncoming((prev) => prev.filter((req) => req.id !== requestId));
     } catch (err) {
-      const message = err?.body || err?.message || "Unable to accept request.";
+      const message = getErrorMessage(err, "Unable to accept request.");
       setError(message);
       await fetchData();
     } finally {
@@ -124,7 +166,7 @@ export default function Friends() {
       await declineFriendRequest(requestId);
       setIncoming((prev) => prev.filter((req) => req.id !== requestId));
     } catch (err) {
-      const message = err?.body || err?.message || "Unable to decline request.";
+      const message = getErrorMessage(err, "Unable to decline request.");
       setError(message);
       await fetchData();
     } finally {
@@ -140,7 +182,7 @@ export default function Friends() {
       await cancelFriendRequest(requestId);
       setOutgoing((prev) => prev.filter((req) => req.id !== requestId));
     } catch (err) {
-      const message = err?.body || err?.message || "Unable to cancel request.";
+      const message = getErrorMessage(err, "Unable to cancel request.");
       setError(message);
       await fetchData();
     } finally {
@@ -156,7 +198,7 @@ export default function Friends() {
       await removeFriend(friendId);
       setFriends((prev) => prev.filter((person) => person.id !== friendId));
     } catch (err) {
-      const message = err?.body || err?.message || "Unable to remove friend.";
+      const message = getErrorMessage(err, "Unable to remove friend.");
       setError(message);
       await fetchData();
     } finally {
