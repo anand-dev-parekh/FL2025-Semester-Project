@@ -34,7 +34,7 @@ def auth_google():
         with conn.cursor() as cursor:
             # Check if user already exists
             cursor.execute("""
-                SELECT id, oauth_id, email, name, bio, level, streak, onboarding_complete
+                SELECT id, oauth_id, email, name, bio, level, streak, onboarding_complete, theme_preference
                 FROM users
                 WHERE oauth_id = %s
             """, (oauth_id,))
@@ -45,7 +45,7 @@ def auth_google():
                 cursor.execute("""
                     INSERT INTO users (oauth_id, email, name, bio, level, streak)
                     VALUES (%s, %s, %s, %s, 1, 0)
-                    RETURNING id, oauth_id, email, name, bio, level, streak, onboarding_complete
+                    RETURNING id, oauth_id, email, name, bio, level, streak, onboarding_complete, theme_preference
                 """, (oauth_id, email, name, ""))
                 db_user = cursor.fetchone()
 
@@ -71,6 +71,7 @@ def auth_google():
         "level": db_user[5],
         "streak": db_user[6],
         "onboarding_complete": db_user[7],
+        "theme_preference": db_user[8],
         "picture": picture,
     }
 
