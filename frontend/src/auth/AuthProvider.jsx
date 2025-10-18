@@ -1,9 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from '../api/auth';
+import { AuthContext } from "./AuthContext";
 
 // Overall file to manage authentication and user state for webapp using react context
-const AuthContext = createContext(null);
-
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [initializing, setInitializing] = useState(true);
@@ -58,25 +57,32 @@ export function AuthProvider({ children }) {
         return () => window.google?.accounts?.id?.cancel?.();
     }, [clientId]);
 
-    const renderGoogleButton = (el, options = {}) => {
-        if (!loginReady || !window.google?.accounts?.id || !el) return;
-        window.google.accounts.id.renderButton(el, {
-            type: 'standard',
-            theme: 'outline',
-            size: 'large',
-            shape: 'pill',
-            text: 'signin_with',
-            logo_alignment: 'left',
-            width: '350',
-            ...options  // Allow overrides
-        });
-    };
+    const renderGoogleButton = useCallback(
+        (el, options = {}) => {
+            if (!loginReady || !window.google?.accounts?.id || !el) return;
+            window.google.accounts.id.renderButton(el, {
+                type: 'standard',
+                theme: 'outline',
+                size: 'large',
+                shape: 'pill',
+                text: 'signin_with',
+                logo_alignment: 'left',
+                width: '350',
+                ...options,
+            });
+        },
+        [loginReady],
+    );
 
-    const logout = async () => {
-        try { await apiLogout(); } catch {}
+    const logout = useCallback(async () => {
+        try {
+            await apiLogout();
+        } catch (err) {
+            console.error('Logout failed:', err);
+        }
         setUser(null);
         window.google?.accounts?.id?.disableAutoSelect?.();
-    };
+    }, [setUser]);
 
     const refreshUser = useCallback(async () => {
         try {
@@ -96,5 +102,3 @@ export function AuthProvider({ children }) {
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
-export const useAuth = () => useContext(AuthContext);
