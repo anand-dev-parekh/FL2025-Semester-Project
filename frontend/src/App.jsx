@@ -4,6 +4,7 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Journal from "./pages/Journal";
+import Onboarding from "./pages/Onboarding";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
 export default function App() {
@@ -37,6 +38,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Journal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute allowIncomplete>
+                <Onboarding />
               </ProtectedRoute>
             }
           />

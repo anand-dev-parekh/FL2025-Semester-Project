@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from '../api/auth';
 
 // Overall file to manage authentication and user state for webapp using react context
@@ -78,7 +78,21 @@ export function AuthProvider({ children }) {
         window.google?.accounts?.id?.disableAutoSelect?.();
     };
 
-    const value = useMemo(() => ({ user, loginReady, initializing, renderGoogleButton, logout }), [user, initializing, loginReady]);
+    const refreshUser = useCallback(async () => {
+        try {
+            const latest = await currentUser();
+            setUser(latest);
+            return latest;
+        } catch (err) {
+            setUser(null);
+            throw err;
+        }
+    }, [setUser]);
+
+    const value = useMemo(
+        () => ({ user, loginReady, initializing, renderGoogleButton, logout, refreshUser, setUser }),
+        [user, loginReady, initializing, renderGoogleButton, logout, refreshUser, setUser]
+    );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
