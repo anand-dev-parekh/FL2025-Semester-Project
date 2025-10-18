@@ -1,7 +1,7 @@
 // frontend/src/pages/Profile.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "../auth/useAuth";
 import { http } from "../api/http"; 
 
 const cardClasses =

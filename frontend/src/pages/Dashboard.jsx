@@ -1,4 +1,4 @@
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "../auth/useAuth";
 import { useNavigate } from "react-router-dom";
 
 const buttonBase =
