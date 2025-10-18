@@ -3,9 +3,10 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
-import Journal from "./pages/Journal";
+import Habits from "./pages/Habits";
 import Onboarding from "./pages/Onboarding";
 import SignIn from "./pages/SignIn";
+import Friends from "./pages/Friends";
 
 export default function App() {
   return (
@@ -31,10 +32,18 @@ export default function App() {
             }
           />
           <Route
-            path="/journal"
+            path="/habits"
             element={
               <ProtectedRoute>
-                <Journal />
+                <Habits />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/friends"
+            element={
+              <ProtectedRoute>
+                <Friends />
               </ProtectedRoute>
             }
           />
