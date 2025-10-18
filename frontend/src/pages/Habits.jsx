@@ -158,6 +158,12 @@ export default function HabitsPage() {
     return Array.from(byHabit.entries()).map(([k, arr]) => [habitsById.get(Number(k)), arr]);
   }, [filtered, habitsById]);
 
+  const trackedHabits = useMemo(() => {
+    const ids = new Set();
+    for (const goal of goals) ids.add(goal.habit_id);
+    return ids.size;
+  }, [goals]);
+
   // stats
   const totalGoals = filtered.length;
   const totalXp = filtered.reduce((acc, g) => acc + (g.xp || 0), 0);
@@ -177,18 +183,22 @@ export default function HabitsPage() {
 
       {/* Summary */}
       <section className={`${cardClasses} mt-10`}>
-        <div className="grid gap-6 sm:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl border border-emerald-200/60 bg-emerald-100/40 p-5 text-sm text-emerald-900 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-900/30 dark:text-emerald-200">
             <div className="text-xs uppercase tracking-[0.2em]">Goals</div>
             <div className="mt-3 text-3xl font-semibold">{totalGoals}</div>
+          </div>
+          <div className="rounded-2xl border border-sky-200/70 bg-sky-100/45 p-5 text-sm text-sky-900 shadow-inner dark:border-sky-500/40 dark:bg-sky-900/35 dark:text-sky-200">
+            <div className="text-xs uppercase tracking-[0.2em]">Habits</div>
+            <div className="mt-3 text-3xl font-semibold">{trackedHabits}</div>
           </div>
           <div className="rounded-2xl border border-lime-200/60 bg-lime-100/40 p-5 text-sm text-lime-900 shadow-inner dark:border-lime-500/30 dark:bg-lime-900/30 dark:text-lime-200">
             <div className="text-xs uppercase tracking-[0.2em]">Total XP</div>
             <div className="mt-3 text-3xl font-semibold">{totalXp}</div>
           </div>
-          <div className="rounded-2xl border border-slate-200/60 bg-slate-100/40 p-5 text-sm text-slate-900 shadow-inner dark:border-slate-700/30 dark:bg-slate-800/30 dark:text-slate-200">
-            <div className="text-xs uppercase tracking-[0.2em]">Habits</div>
-            <div className="mt-3 text-3xl font-semibold">{habits.length}</div>
+          <div className="rounded-2xl border border-amber-200/60 bg-amber-100/40 p-5 text-sm text-amber-900 shadow-inner dark:border-amber-500/30 dark:bg-amber-900/30 dark:text-amber-200">
+            <div className="text-xs uppercase tracking-[0.2em]">Streak</div>
+            <div className="mt-3 text-3xl font-semibold">TBD</div>
           </div>
         </div>
       </section>
