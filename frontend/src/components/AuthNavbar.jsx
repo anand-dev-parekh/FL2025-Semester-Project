@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import ThemeToggle from "./ThemeToggle";
 
 const navLinkBase =
   "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 dark:text-slate-300 dark:hover:text-emerald-300";
@@ -54,7 +55,7 @@ export default function AuthNavbar() {
           Magic Journal
         </Link>
 
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-4">
             {links.map(({ to, label, icon: Icon }) => (
               <NavLink
@@ -75,13 +76,16 @@ export default function AuthNavbar() {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="rounded-full border border-rose-200/70 bg-rose-500 px-4 py-2 text-sm font-medium text-white shadow-md transition hover:bg-rose-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 dark:border-rose-500/70 dark:bg-rose-600 dark:hover:bg-rose-500"
-          >
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="rounded-full border border-rose-200/70 bg-rose-500 px-4 py-2 text-sm font-medium text-white shadow-md transition hover:bg-rose-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 dark:border-rose-500/70 dark:bg-rose-600 dark:hover:bg-rose-500"
+            >
+              Sign Out
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </div>
     </nav>
