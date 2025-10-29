@@ -1,9 +1,26 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useCallback } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 
 const navLinkBase =
-  "text-sm font-medium text-slate-600 transition hover:text-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 dark:text-slate-300 dark:hover:text-emerald-300";
+  "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 dark:text-slate-300 dark:hover:text-emerald-300";
+
+function DashboardIcon(props) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M3 3h7v9H3zM14 3h7v5h-7zM14 11h7v10h-7zM3 15h7v6H3z" />
+    </svg>
+  );
+}
 
 export default function AuthNavbar() {
   const navigate = useNavigate();
@@ -20,6 +37,7 @@ export default function AuthNavbar() {
   }, [logout, navigate]);
 
   const links = [
+    { to: "/app", label: "Dashboard", icon: DashboardIcon },
     { to: "/habits", label: "Habits" },
     { to: "", label: "Journal" },
     { to: "/friends", label: "Friends" },
@@ -38,18 +56,21 @@ export default function AuthNavbar() {
 
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4">
-            {links.map(({ to, label }) => (
+            {links.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
                   [
                     navLinkBase,
-                    isActive ? "text-emerald-600 dark:text-emerald-300" : "",
+                    isActive
+                      ? "bg-emerald-100/70 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                      : "bg-transparent",
                   ].join(" ")
                 }
               >
-                {label}
+                {Icon ? <Icon className="h-4 w-4" /> : null}
+                <span>{label}</span>
               </NavLink>
             ))}
           </div>
