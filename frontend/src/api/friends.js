@@ -30,3 +30,7 @@ export function cancelFriendRequest(requestId) {
 export function removeFriend(friendUserId) {
   return http(`/api/friends/${friendUserId}`, { method: 'DELETE' });
 }
+
+export function getFriendHabits(friendUserId) {
+  return http(`/api/friends/${friendUserId}/habits`);
+}
