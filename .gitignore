@@ -3,4 +3,5 @@
 Backend/venv
 .DS_Store
 *.pyc
-*__pycache__
+*__pycache____pycache__/
+*.pyc
