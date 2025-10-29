@@ -7,6 +7,7 @@ import Habits from "./pages/Habits";
 import Onboarding from "./pages/Onboarding";
 import SignIn from "./pages/SignIn";
 import Friends from "./pages/Friends";
+import Journal from "./pages/Journal";
 
 export default function App() {
   return (
@@ -44,6 +45,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Friends />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/journal"
+            element={
+              <ProtectedRoute>
+                <Journal />
               </ProtectedRoute>
             }
           />

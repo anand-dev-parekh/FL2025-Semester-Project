@@ -481,3 +481,88 @@ def delete_friend(friend_user_id):
         return ("", 204)
     finally:
         db_pool.putconn(conn)
+
+
+@friend_blueprint.route("/<int:friend_id>/habits", methods=["GET"])
+def get_friend_habits(friend_id):
+    user, error = _ensure_auth()
+    if error:
+        return error
+
+    if friend_id == user["id"]:
+        return jsonify({"error": "Friend ID must be different from your user ID"}), 400
+
+    low_id = min(user["id"], friend_id)
+    high_id = max(user["id"], friend_id)
+
+    conn = db_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM friends
+                WHERE user_id1 = %s AND user_id2 = %s
+                """,
+                (low_id, high_id),
+            )
+            if not cur.fetchone():
+                return jsonify({"error": "You can only view habits for confirmed friends."}), 403
+
+            cur.execute(
+                """
+                SELECT id, email, name, bio
+                FROM users
+                WHERE id = %s
+                """,
+                (friend_id,),
+            )
+            friend_row = cur.fetchone()
+            if not friend_row:
+                return jsonify({"error": "Friend not found"}), 404
+
+            cur.execute(
+                """
+                SELECT
+                    g.id,
+                    g.goal_text,
+                    g.xp,
+                    g.completed,
+                    g.created_at,
+                    h.id AS habit_id,
+                    h.name AS habit_name,
+                    h.description AS habit_description
+                FROM goals g
+                JOIN habits h ON h.id = g.habit_id
+                WHERE g.user_id = %s
+                ORDER BY h.name NULLS LAST, g.created_at DESC
+                """,
+                (friend_id,),
+            )
+            rows = cur.fetchall()
+
+        goals = [
+            {
+                "id": row[0],
+                "goal_text": row[1],
+                "xp": row[2],
+                "completed": row[3],
+                "created_at": row[4].isoformat() if row[4] else None,
+                "habit_id": row[5],
+                "habit": {
+                    "id": row[5],
+                    "name": row[6],
+                    "description": row[7],
+                },
+            }
+            for row in rows
+        ]
+
+        return jsonify(
+            {
+                "friend": _build_user_payload(friend_row),
+                "goals": goals,
+            }
+        )
+    finally:
+        db_pool.putconn(conn)

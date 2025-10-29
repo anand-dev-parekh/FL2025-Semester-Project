@@ -53,6 +53,16 @@ export default function HabitsPage() {
     })();
   }, []);
 
+  // broadcast goal updates so other screens (e.g., dashboard) can stay in sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent("habits:goalsChange", {
+        detail: goals.map((goal) => ({ ...goal })),
+      }),
+    );
+  }, [goals]);
+
   const onCreateGoal = async (e) => {
     e.preventDefault();
     if (!habitId || !goalText.trim()) return;
