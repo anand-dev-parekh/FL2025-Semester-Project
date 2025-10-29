@@ -11,12 +11,10 @@ const inputClasses =
   "mt-2 w-full rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-base text-slate-900 shadow-sm outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-300/70 dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-100 dark:placeholder:text-slate-400";
 const buttonBase =
   "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
-const themeToggleClasses =
-  "inline-flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium text-emerald-600 transition hover:text-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-60 disabled:pointer-events-none dark:text-emerald-300 dark:hover:text-emerald-200";
 
 export default function Profile() {
   const { user: authUser, refreshUser } = useAuth();
-  const { theme, preference: themePreferenceContext, setPreference: setThemePreference } = useTheme();
+  const { preference: themePreferenceContext, setPreference: setThemePreference } = useTheme();
 
   const [form, setForm] = useState(() => ({
     fullName: authUser?.name || "",
@@ -28,17 +26,9 @@ export default function Profile() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [themeSaving, setThemeSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [submitNotice, setSubmitNotice] = useState("");
   const [submitError, setSubmitError] = useState("");
-
-  const updateThemePreference = (next) => {
-    const candidate = typeof next === "string" ? next.toLowerCase() : "system";
-    const normalized = candidate === "light" || candidate === "dark" ? candidate : "system";
-    setForm((f) => ({ ...f, themePreference: normalized }));
-    setThemePreference(normalized);
-  };
 
   // Load user data from backend
   useEffect(() => {
@@ -51,7 +41,6 @@ export default function Profile() {
           bio: u.bio || "",
           themePreference: u.theme_preference || "system",
         });
-        setThemePreference(u.theme_preference || "system");
       } catch (err) {
         console.error(err);
         setLoadError("Failed to load profile.");
@@ -59,7 +48,7 @@ export default function Profile() {
         setLoading(false);
       }
     })();
-  }, [setThemePreference]);
+  }, []);
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -115,53 +104,6 @@ export default function Profile() {
   };
 
 
-  const themePreference = form.themePreference;
-  const themeIsDark = theme === "dark";
-  const nextTogglePreference =
-    themePreference === "system"
-      ? themeIsDark
-        ? "light"
-        : "dark"
-      : themePreference === "dark"
-        ? "light"
-        : "dark";
-  const toggleLabel =
-    themePreference === "system"
-      ? `System (${themeIsDark ? "Dark" : "Light"})`
-      : themePreference === "dark"
-        ? "Dark mode"
-        : "Light mode";
-
-  const persistThemePreference = async (nextPreference) => {
-    const previousPreference = form.themePreference;
-    updateThemePreference(nextPreference);
-    setThemeSaving(true);
-    try {
-      await http("/api/user/me", {
-        method: "PATCH",
-        body: {
-          theme_preference: nextPreference,
-        },
-      });
-      try {
-        await refreshUser();
-      } catch (refreshErr) {
-        console.error(refreshErr);
-      }
-    } catch (err) {
-      console.error(err);
-      updateThemePreference(previousPreference);
-      alert("Failed to update theme preference.");
-    } finally {
-      setThemeSaving(false);
-    }
-  };
-
-  const handleThemeToggle = async () => {
-    if (themeSaving) return;
-    await persistThemePreference(nextTogglePreference);
-  };
-
   return (
     <>
       <AuthNavbar />
@@ -171,15 +113,6 @@ export default function Profile() {
             <h1 className="text-4xl font-semibold text-emerald-900 dark:text-emerald-200">
               Your Profile
             </h1>
-            <button
-              type="button"
-              onClick={handleThemeToggle}
-              aria-label={`Switch to ${nextTogglePreference} mode`}
-              aria-pressed={themeIsDark}
-              className={`${themeToggleClasses} ml-auto`}
-            >
-              {toggleLabel}
-            </button>
           </div>
           <p className="mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
             Manage your account details.
