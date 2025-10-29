@@ -9,6 +9,7 @@ from routes.user import user_blueprint
 from routes.habit import habit_blueprint 
 from routes.goal import goal_blueprint
 from routes.friend import friend_blueprint
+from routes.journal import journal_blueprint
 
 # Load environment variables first (.env, then .env.local override)
 ENV_ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +55,7 @@ def create_app():
     app.register_blueprint(habit_blueprint)
     app.register_blueprint(goal_blueprint)
     app.register_blueprint(friend_blueprint)
+    app.register_blueprint(journal_blueprint)
 
     return app
 
