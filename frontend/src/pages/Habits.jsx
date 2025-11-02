@@ -177,7 +177,6 @@ export default function HabitsPage() {
   // stats
   const totalGoals = filtered.length;
   const totalXp = filtered.reduce((acc, g) => acc + (g.xp || 0), 0);
-
   return (
     <>
       <AuthNavbar />
@@ -193,7 +192,7 @@ export default function HabitsPage() {
 
       {/* Summary */}
       <section className={`${cardClasses} mt-10`}>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-2xl border border-emerald-200/60 bg-emerald-100/40 p-5 text-sm text-emerald-900 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-900/30 dark:text-emerald-200">
             <div className="text-xs uppercase tracking-[0.2em]">Goals</div>
             <div className="mt-3 text-3xl font-semibold">{totalGoals}</div>
@@ -205,10 +204,6 @@ export default function HabitsPage() {
           <div className="rounded-2xl border border-lime-200/60 bg-lime-100/40 p-5 text-sm text-lime-900 shadow-inner dark:border-lime-500/30 dark:bg-lime-900/30 dark:text-lime-200">
             <div className="text-xs uppercase tracking-[0.2em]">Total XP</div>
             <div className="mt-3 text-3xl font-semibold">{totalXp}</div>
-          </div>
-          <div className="rounded-2xl border border-amber-200/60 bg-amber-100/40 p-5 text-sm text-amber-900 shadow-inner dark:border-amber-500/30 dark:bg-amber-900/30 dark:text-amber-200">
-            <div className="text-xs uppercase tracking-[0.2em]">Streak</div>
-            <div className="mt-3 text-3xl font-semibold">TBD</div>
           </div>
         </div>
       </section>
@@ -363,24 +358,8 @@ function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText, onG
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onLoseXp}
-            className={`${buttonBase} border border-slate-200/70 bg-white/80 text-slate-700 hover:bg-slate-100/70 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200`}
-            type="button"
-          >
-            −5 XP
-          </button>
-          <span className="min-w-[5rem] text-center text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-            {goal.xp ?? 0} XP
-          </span>
-          <button
-            onClick={onGainXp}
-            className={`${buttonBase} border border-emerald-300/70 bg-emerald-400/80 text-emerald-950 hover:bg-emerald-300/80 dark:border-emerald-500/40 dark:bg-emerald-500/80 dark:text-slate-950`}
-            type="button"
-          >
-            +5 XP
-          </button>
+        <div className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+          {goal.xp ?? 0} XP
         </div>
       </div>
 

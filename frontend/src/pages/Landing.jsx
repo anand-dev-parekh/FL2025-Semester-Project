@@ -7,7 +7,7 @@ const coreFeatures = [
   {
     title: "Habit Tracking",
     description:
-      "Create routines that stick with streaks, adaptive reminders, and check-ins that celebrate every win.",
+      "Create routines that stick with adaptive reminders and check-ins that celebrate every win.",
     accent: "Design, repeat, and refine your habits with confidence.",
   },
   {
@@ -25,7 +25,7 @@ const coreFeatures = [
   {
     title: "Gamified Progress",
     description:
-      "Earn XP, unlock progress streaks, and watch your habit journey level up as you stay consistent.",
+      "Earn XP, unlock progress, and watch your habit journey level up as you stay consistent.",
     accent: "Motivation meets measurable momentum.",
   },
 ];
@@ -119,7 +119,7 @@ export default function Landing() {
               </h3>
               <p className="text-base leading-relaxed">
                 See every habit, reflection, and milestone in one timeline. Track momentum, hold your
-                future self accountable, and celebrate each streak along the way.
+                future self accountable, and celebrate meaningful wins along the way.
               </p>
               <p className="text-sm text-slate-700/80 dark:text-slate-300/90">
                 When you are ready to begin, tap the Google sign-in button up top—your journey is one

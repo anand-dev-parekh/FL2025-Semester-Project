@@ -34,7 +34,7 @@ const STEP_META = [
 const HIGHLIGHTS = [
   {
     title: "Daily reflections",
-    blurb: "Capture your thoughts, wins, and lessons with a journal built for streaks and growth.",
+    blurb: "Capture your thoughts, wins, and lessons with a journal built for growth.",
   },
   {
     title: "Habit-powered goals",
@@ -42,7 +42,7 @@ const HIGHLIGHTS = [
   },
   {
     title: "Progress you can feel",
-    blurb: "Levels, streaks, and badges keep progress tangible so you stay motivated.",
+    blurb: "Levels, badges, and gentle nudges keep progress tangible so you stay motivated.",
   },
 ];
 
@@ -310,7 +310,7 @@ export default function Onboarding() {
             <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
               <li>• Personalize how we greet you across the app.</li>
               <li>• Craft the first goals that matter most right now.</li>
-              <li>• Learn how quests, XP, and streaks keep you motivated.</li>
+              <li>• Learn how quests and XP keep you motivated.</li>
             </ul>
             <div>
               <button

@@ -3,6 +3,27 @@ import AuthNavbar from "../components/AuthNavbar";
 import { http } from "../api/http";
 import { listJournalEntries, saveJournalEntry } from "../api/journal";
 
+const COMPLETION_OPTIONS = [
+  {
+    value: "missed",
+    label: "Skipped",
+    xp: 0,
+    helper: "Did not focus on this habit today.",
+  },
+  {
+    value: "partial",
+    label: "Partially Complete",
+    xp: 5,
+    helper: "You nearly followed the habit but missed a piece.",
+  },
+  {
+    value: "complete",
+    label: "Completed",
+    xp: 10,
+    helper: "Followed the habit as planned.",
+  },
+];
+
 const pageContainer =
   "rounded-3xl border border-white/60 bg-white/75 p-8 shadow-xl backdrop-blur-md transition-colors duration-500 dark:border-slate-800/70 dark:bg-slate-900/60";
 
@@ -13,9 +34,6 @@ const textareaBase = `${inputBase} resize-none min-h-[160px]`;
 
 const buttonPrimary =
   "inline-flex items-center justify-center rounded-full border border-emerald-300/70 bg-emerald-500 px-5 py-2 text-sm font-semibold text-emerald-950 shadow-sm transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400";
-
-const buttonGhost =
-  "inline-flex items-center justify-center rounded-full border border-transparent px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-emerald-200 hover:text-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 dark:text-slate-300 dark:hover:text-emerald-300";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -41,6 +59,18 @@ function formatHabitLabel(goal) {
   return parts.join(" ");
 }
 
+function inferCompletionLevel(xpDelta) {
+  const numeric = Number(xpDelta || 0);
+  if (numeric >= 10) return "complete";
+  if (numeric <= 0) return "missed";
+  return "partial";
+}
+
+function formatCompletion(value) {
+  const option = COMPLETION_OPTIONS.find((item) => item.value === value);
+  return option ? option.label : "Unknown";
+}
+
 export default function Journal() {
   const [goals, setGoals] = useState([]);
   const [goalsLoading, setGoalsLoading] = useState(true);
@@ -53,7 +83,7 @@ export default function Journal() {
 
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [reflection, setReflection] = useState("");
-  const [xpDelta, setXpDelta] = useState(0);
+  const [completionLevel, setCompletionLevel] = useState(COMPLETION_OPTIONS[1].value);
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -123,10 +153,11 @@ export default function Journal() {
     const entry = findEntry(entries, selectedDate);
     if (entry) {
       setReflection(entry.reflection || "");
-      setXpDelta(entry.xp_delta ?? 0);
+      const level = entry.completion_level || inferCompletionLevel(entry.xp_delta);
+      setCompletionLevel(level);
     } else {
       setReflection("");
-      setXpDelta(0);
+      setCompletionLevel(COMPLETION_OPTIONS[1].value);
     }
     setSaveNotice("");
     setSaveError("");
@@ -141,12 +172,23 @@ export default function Journal() {
     setSelectedDate(event.target.value);
   };
 
-  const adjustXp = (delta) => {
-    setXpDelta((prev) => {
-      const next = Number(prev || 0) + delta;
-      return next;
-    });
-  };
+  const selectedCompletionIndex = useMemo(() => {
+    const idx = COMPLETION_OPTIONS.findIndex((option) => option.value === completionLevel);
+    return idx >= 0 ? idx : 1;
+  }, [completionLevel]);
+
+  const selectedCompletion =
+    COMPLETION_OPTIONS[selectedCompletionIndex] || COMPLETION_OPTIONS[1];
+
+  const sliderFillStyle = useMemo(() => {
+    const maxIndex = COMPLETION_OPTIONS.length - 1 || 1;
+    const percent = Math.max(0, Math.min(100, (selectedCompletionIndex / maxIndex) * 100));
+    const activeColor = "rgba(16, 185, 129, 0.85)";
+    const inactiveColor = "rgba(148, 163, 184, 0.35)";
+    return {
+      background: `linear-gradient(90deg, ${activeColor} 0%, ${activeColor} ${percent}%, ${inactiveColor} ${percent}%, ${inactiveColor} 100%)`,
+    };
+  }, [selectedCompletionIndex]);
 
   const handleSave = async (event) => {
     event.preventDefault();
@@ -167,7 +209,7 @@ export default function Journal() {
         goal_id: selectedGoalId,
         entry_date: selectedDate,
         reflection,
-        xp_delta: Number(xpDelta) || 0,
+        completion_level: completionLevel,
       });
 
       const entry = payload?.entry;
@@ -258,36 +300,43 @@ export default function Journal() {
 
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
-                <span>XP Earned</span>
+                <span>How did today go?</span>
                 <input
-                  type="number"
-                  value={xpDelta}
-                  onChange={(event) => setXpDelta(event.target.value)}
-                  className={`${inputBase} w-32`}
+                  type="range"
+                  min="0"
+                  max={COMPLETION_OPTIONS.length - 1}
+                  step="1"
+                  value={selectedCompletionIndex}
+                  onChange={(event) => {
+                    const index = Number(event.target.value);
+                    const next = COMPLETION_OPTIONS[index];
+                    setCompletionLevel(next ? next.value : COMPLETION_OPTIONS[1].value);
+                  }}
+                  className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                  style={sliderFillStyle}
                 />
+                <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {COMPLETION_OPTIONS.map((option, index) => (
+                    <span
+                      key={option.value}
+                      className={
+                        index === selectedCompletionIndex
+                          ? "rounded-full border border-emerald-300/70 bg-emerald-100 px-3 py-1 text-center text-emerald-700 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200"
+                          : "rounded-full border border-transparent bg-slate-100 px-3 py-1 text-center dark:bg-slate-800/60"
+                      }
+                    >
+                      {option.label}
+                    </span>
+                  ))}
+                </div>
               </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => adjustXp(5)}
-                  className={buttonGhost}
-                >
-                  +5
-                </button>
-                <button
-                  type="button"
-                  onClick={() => adjustXp(10)}
-                  className={buttonGhost}
-                >
-                  +10
-                </button>
-                <button
-                  type="button"
-                  onClick={() => adjustXp(-5)}
-                  className={buttonGhost}
-                >
-                  -5
-                </button>
+              <div className="flex min-w-[12rem] flex-col gap-1 rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
+                <span className="font-medium text-emerald-700 dark:text-emerald-300">
+                  {selectedCompletion.label} • Earns {selectedCompletion.xp} XP
+                </span>
+                <span className="text-xs text-slate-600 dark:text-slate-300">
+                  {selectedCompletion.helper}
+                </span>
               </div>
             </div>
 
@@ -346,7 +395,7 @@ export default function Journal() {
                           {entry.goal_text}
                         </span>
                         <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                          {entry.xp_delta} XP | Goal total {entry.goal_xp} XP
+                          {formatCompletion(entry.completion_level)} · {entry.xp_delta} XP | Goal total {entry.goal_xp} XP
                         </span>
                       </div>
                       {entry.reflection ? (
