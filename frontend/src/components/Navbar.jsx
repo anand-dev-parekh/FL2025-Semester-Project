@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   return (
@@ -10,12 +11,15 @@ export default function Navbar() {
         >
           Magic Journal
         </Link>
-        <Link
-          to="/signin"
-          className="rounded-full border border-emerald-300/70 bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-md transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 dark:border-emerald-600/70 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-        >
-          Sign In
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/signin"
+            className="rounded-full border border-emerald-300/70 bg-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-md transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 dark:border-emerald-600/70 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+          >
+            Sign In
+          </Link>
+          <ThemeToggle />
+        </div>
       </div>
     </nav>
   );

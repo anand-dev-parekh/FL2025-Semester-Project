@@ -1,15 +1,46 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from '../api/auth';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { exchangeGoogleIdToken, currentUser, logout as apiLogout } from "../api/auth";
+import { http } from "../api/http";
 import { AuthContext } from "./AuthContext";
 import { useTheme } from "../theme/useTheme";
+
+const SUPPORTED_THEMES = new Set(["light", "dark", "system"]);
+
+const normalizeThemePreference = (value) => {
+    if (typeof value !== "string") {
+        return "system";
+    }
+    const lowered = value.toLowerCase();
+    return SUPPORTED_THEMES.has(lowered) ? lowered : "system";
+};
+
+const themeSyncStorageKey = (userId) => `theme-sync:${userId}`;
+
+const hasStoredThemePreference = (value) =>
+    typeof value === "string" && SUPPORTED_THEMES.has(value.toLowerCase());
+
+const readThemeSyncFlag = (userId) => {
+    if (typeof window === "undefined" || !userId) return false;
+    return window.localStorage.getItem(themeSyncStorageKey(userId)) === "1";
+};
+
+const markThemeSynced = (userId) => {
+    if (typeof window === "undefined" || !userId) return;
+    window.localStorage.setItem(themeSyncStorageKey(userId), "1");
+};
 
 // Overall file to manage authentication and user state for webapp using react context
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [initializing, setInitializing] = useState(true);
     const [loginReady, setLoginReady] = useState(false);
+    const [userThemeSynced, setUserThemeSynced] = useState(false);
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const { setPreference: setThemePreference } = useTheme();
+    const { preference: themePreference, setPreference: setThemePreference } = useTheme();
+    const lastAppliedUserTheme = useRef(null);
+    const syncingTheme = useRef(false);
+    const skipInitialThemeSync = useRef(false);
+    const themeAtLogin = useRef("system");
 
     // On app load, try to fetch current user using cookie
     useEffect(() => {
@@ -102,15 +133,115 @@ export function AuthProvider({ children }) {
         [user, loginReady, initializing, renderGoogleButton, logout, refreshUser, setUser]
     );
 
-    const userThemePreference = user?.theme_preference;
+    const rawUserThemePreference = user?.theme_preference;
+    const normalizedUserThemePreference = normalizeThemePreference(rawUserThemePreference);
+    const userHasStoredThemePreference = (() => {
+        if (!hasStoredThemePreference(rawUserThemePreference)) {
+            return false;
+        }
+        if (normalizedUserThemePreference === "system") {
+            return userThemeSynced;
+        }
+        return true;
+    })();
 
     useEffect(() => {
-        if (userThemePreference) {
-            setThemePreference(userThemePreference);
-        } else {
-            setThemePreference("system");
+        if (!user?.id) {
+            setUserThemeSynced(false);
+            return;
         }
-    }, [userThemePreference, setThemePreference]);
+        setUserThemeSynced(readThemeSyncFlag(user.id));
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (!user?.id) {
+            lastAppliedUserTheme.current = null;
+            skipInitialThemeSync.current = false;
+            themeAtLogin.current = "system";
+            return;
+        }
+        const signature = `${user.id}:${userHasStoredThemePreference ? normalizedUserThemePreference : "unset"}`;
+        if (lastAppliedUserTheme.current === signature) {
+            return;
+        }
+        lastAppliedUserTheme.current = signature;
+
+        if (!userHasStoredThemePreference) {
+            themeAtLogin.current = normalizeThemePreference(themePreference);
+            skipInitialThemeSync.current = true;
+            return;
+        }
+
+        skipInitialThemeSync.current = false;
+        const normalizedThemePreference = normalizeThemePreference(themePreference);
+        if (normalizedThemePreference !== normalizedUserThemePreference) {
+            setThemePreference(normalizedUserThemePreference);
+        }
+    }, [
+        user,
+        themePreference,
+        normalizedUserThemePreference,
+        userHasStoredThemePreference,
+        setThemePreference,
+    ]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        const normalizedPreference = normalizeThemePreference(themePreference);
+        if (userHasStoredThemePreference && normalizedPreference === normalizedUserThemePreference) {
+            return;
+        }
+        if (syncingTheme.current) {
+            return;
+        }
+
+        if (!userHasStoredThemePreference && skipInitialThemeSync.current) {
+            const normalizedLoginPreference = normalizeThemePreference(themeAtLogin.current);
+            if (normalizedPreference === normalizedLoginPreference) {
+                return;
+            }
+            skipInitialThemeSync.current = false;
+        }
+
+        syncingTheme.current = true;
+        let cancelled = false;
+        (async () => {
+            try {
+                const updated = await http("/api/user/me", {
+                    method: "PATCH",
+                    body: { theme_preference: normalizedPreference },
+                });
+                if (!cancelled) {
+                    setUser(updated);
+                    const updatedPreference = normalizeThemePreference(updated?.theme_preference);
+                    const updatedHasStoredPreference = hasStoredThemePreference(updated?.theme_preference);
+                    lastAppliedUserTheme.current = `${updated?.id}:${updatedHasStoredPreference ? updatedPreference : "unset"}`;
+                    skipInitialThemeSync.current = false;
+                    if (updated?.id) {
+                        markThemeSynced(updated.id);
+                        setUserThemeSynced(true);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to persist theme preference:", err);
+            } finally {
+                syncingTheme.current = false;
+                if (!cancelled) {
+                    cancelled = true;
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        themePreference,
+        user,
+        normalizedUserThemePreference,
+        userHasStoredThemePreference,
+        setUser,
+    ]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
