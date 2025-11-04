@@ -6,6 +6,13 @@ from tools.database import db_pool
 
 journal_blueprint = Blueprint("journal", __name__, url_prefix="/api/journal")
 
+COMPLETION_TO_XP = {
+    "missed": 0,
+    "partial": 5,
+    "complete": 10,
+}
+DEFAULT_COMPLETION_LEVEL = "partial"
+
 
 def _parse_date(value):
     if isinstance(value, date_cls):
@@ -25,6 +32,17 @@ def _ensure_auth():
     return user, None
 
 
+def _normalize_completion_level(value):
+    if value is None:
+        return DEFAULT_COMPLETION_LEVEL
+    level = str(value).strip().lower()
+    if not level:
+        return DEFAULT_COMPLETION_LEVEL
+    if level not in COMPLETION_TO_XP:
+        return None
+    return level
+
+
 def _entry_payload(row):
     return {
         "id": row[0],
@@ -34,10 +52,11 @@ def _entry_payload(row):
         "goal_text": row[4],
         "entry_date": row[5].isoformat() if row[5] else None,
         "reflection": row[6],
-        "xp_delta": row[7],
-        "created_at": row[8].isoformat() if row[8] else None,
-        "updated_at": row[9].isoformat() if row[9] else None,
-        "goal_xp": row[10],
+        "completion_level": row[7],
+        "xp_delta": row[8],
+        "created_at": row[9].isoformat() if row[9] else None,
+        "updated_at": row[10].isoformat() if row[10] else None,
+        "goal_xp": row[11],
     }
 
 
@@ -80,6 +99,7 @@ def list_entries():
             g.goal_text,
             je.entry_date,
             je.reflection,
+            je.completion_level,
             je.xp_delta,
             je.created_at,
             je.updated_at,
@@ -122,7 +142,7 @@ def upsert_entry():
     goal_id = data.get("goal_id")
     entry_date = _parse_date(data.get("entry_date"))
     reflection = (data.get("reflection") or "").strip()
-    xp_delta = data.get("xp_delta", 0)
+    completion_level = _normalize_completion_level(data.get("completion_level"))
 
     if goal_id is None:
         return jsonify({"error": "goal_id is required"}), 400
@@ -134,10 +154,15 @@ def upsert_entry():
     if not entry_date:
         return jsonify({"error": "entry_date must be provided in YYYY-MM-DD format"}), 400
 
-    try:
-        xp_delta = int(xp_delta)
-    except (TypeError, ValueError):
-        return jsonify({"error": "xp_delta must be an integer"}), 400
+    if completion_level is None:
+        return jsonify(
+            {
+                "error": "completion_level must be one of "
+                + ", ".join(sorted(COMPLETION_TO_XP.keys()))
+            },
+        ), 400
+
+    xp_delta = COMPLETION_TO_XP[completion_level]
 
     conn = db_pool.getconn()
     try:
@@ -179,19 +204,20 @@ def upsert_entry():
                         UPDATE journal_entries
                         SET reflection = %s,
                             xp_delta = %s,
+                            completion_level = %s,
                             updated_at = now()
                         WHERE id = %s
                         """,
-                        (reflection, xp_delta, entry_id),
+                        (reflection, xp_delta, completion_level, entry_id),
                     )
                 else:
                     cur.execute(
                         """
-                        INSERT INTO journal_entries (user_id, goal_id, entry_date, reflection, xp_delta)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO journal_entries (user_id, goal_id, entry_date, reflection, xp_delta, completion_level)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
-                        (user["id"], goal_id, entry_date, reflection, xp_delta),
+                        (user["id"], goal_id, entry_date, reflection, xp_delta, completion_level),
                     )
                     entry_id = cur.fetchone()[0]
 
@@ -219,6 +245,7 @@ def upsert_entry():
                         g.goal_text,
                         je.entry_date,
                         je.reflection,
+                        je.completion_level,
                         je.xp_delta,
                         je.created_at,
                         je.updated_at,
