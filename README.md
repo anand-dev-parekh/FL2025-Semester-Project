@@ -1,7 +1,4 @@
-# FL2025: Group &lt;Group Number&gt; &lt;Project Name&gt;
-
-Name your repository using the following format:  
-**FL2025_Group_&lt;4&gt;**  
+# FL2025: Group 4 - Magic Journal;
 
 ## Team Members
 - **&lt;Andrew Cai&gt;**: &lt;andrew.cai@wustl.edu&gt; ; &lt;acai6304&gt;

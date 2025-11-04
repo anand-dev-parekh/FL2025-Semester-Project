@@ -5,6 +5,7 @@ import {
   declineFriendRequest,
   listFriends,
   listFriendRequests,
+  getFriendHabits,
   removeFriend,
   sendFriendRequest,
 } from "../api/friends";
@@ -89,6 +90,7 @@ export default function Friends() {
   const [emailInput, setEmailInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [processingId, setProcessingId] = useState(null);
+  const [friendHabits, setFriendHabits] = useState({});
 
   const hasPending = useMemo(() => !!incoming.length || !!outgoing.length, [incoming.length, outgoing.length]);
 
@@ -203,6 +205,51 @@ export default function Friends() {
       await fetchData();
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleToggleFriendHabits = async (friendId) => {
+    const current = friendHabits[friendId];
+    const nextOpen = !(current?.open);
+
+    setFriendHabits((prev) => ({
+      ...prev,
+      [friendId]: {
+        ...prev[friendId],
+        open: nextOpen,
+        error: "",
+        loading: nextOpen && !(prev[friendId]?.goals?.length),
+      },
+    }));
+
+    if (!nextOpen || (current && current.goals && current.goals.length)) {
+      return;
+    }
+
+    try {
+      const response = await getFriendHabits(friendId);
+      setFriendHabits((prev) => ({
+        ...prev,
+        [friendId]: {
+          ...prev[friendId],
+          open: true,
+          loading: false,
+          error: "",
+          goals: Array.isArray(response?.goals) ? response.goals : [],
+          friend: response?.friend || prev[friendId]?.friend,
+        },
+      }));
+    } catch (err) {
+      const message = getErrorMessage(err, "Unable to load friend habits.");
+      setFriendHabits((prev) => ({
+        ...prev,
+        [friendId]: {
+          ...prev[friendId],
+          open: true,
+          loading: false,
+          error: message,
+        },
+      }));
     }
   };
 
@@ -368,34 +415,89 @@ export default function Friends() {
           </p>
         ) : (
           <ul className="mt-5 grid gap-4 md:grid-cols-2">
-            {friends.map((friend) => (
-              <li
-                key={friend.id}
-                className="flex flex-col gap-3 rounded-2xl border border-emerald-200/60 bg-white/70 p-4 shadow-sm transition dark:border-emerald-500/30 dark:bg-slate-900/60"
-              >
-                <div>
-                  <p className="text-base font-semibold text-emerald-900 dark:text-emerald-200">
-                    {friend.name || friend.email}
-                  </p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{friend.email}</p>
-                  {friend.since ? (
-                    <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                      Friends since {formatDate(friend.since)}
-                    </p>
-                  ) : null}
-                  {friend.bio ? (
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-3">{friend.bio}</p>
-                  ) : null}
-                </div>
-                <button
-                  onClick={() => handleRemoveFriend(friend.id)}
-                  className={`${secondaryButton} self-start border border-rose-200/60 bg-white/70 text-rose-600 hover:bg-rose-50 dark:border-rose-400/40 dark:bg-slate-900/70 dark:text-rose-200 dark:hover:bg-slate-900/40`}
-                  disabled={processingId === friend.id}
+            {friends.map((friend) => {
+              const habitState = friendHabits[friend.id] || {};
+              const isOpen = !!habitState.open;
+              return (
+                <li
+                  key={friend.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-emerald-200/60 bg-white/70 p-4 shadow-sm transition dark:border-emerald-500/30 dark:bg-slate-900/60"
                 >
-                  Remove friend
-                </button>
-              </li>
-            ))}
+                  <div>
+                    <p className="text-base font-semibold text-emerald-900 dark:text-emerald-200">
+                      {friend.name || friend.email}
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{friend.email}</p>
+                    {friend.since ? (
+                      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                        Friends since {formatDate(friend.since)}
+                      </p>
+                    ) : null}
+                    {friend.bio ? (
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-3">{friend.bio}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleToggleFriendHabits(friend.id)}
+                      className={`${secondaryButton} border border-emerald-200/60 bg-white/70 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-400/40 dark:bg-slate-900/70 dark:text-emerald-200 dark:hover:bg-slate-900/40`}
+                    >
+                      {isOpen ? "Hide habits" : "View habits"}
+                    </button>
+                    <button
+                      onClick={() => handleRemoveFriend(friend.id)}
+                      className={`${secondaryButton} border border-rose-200/60 bg-white/70 text-rose-600 hover:bg-rose-50 dark:border-rose-400/40 dark:bg-slate-900/70 dark:text-rose-200 dark:hover:bg-slate-900/40`}
+                      disabled={processingId === friend.id}
+                    >
+                      Remove friend
+                    </button>
+                  </div>
+
+                  {isOpen ? (
+                    <div className="rounded-2xl border border-emerald-100/50 bg-emerald-50/60 p-4 text-sm shadow-inner dark:border-emerald-500/30 dark:bg-emerald-900/20">
+                      {habitState.loading ? (
+                        <div className="space-y-3">
+                          <div className="h-4 w-full animate-pulse rounded-full bg-emerald-200/60 dark:bg-emerald-800/60" />
+                          <div className="h-4 w-full animate-pulse rounded-full bg-emerald-200/60 dark:bg-emerald-800/60" />
+                        </div>
+                      ) : habitState.error ? (
+                        <p className="text-sm text-rose-600 dark:text-rose-300">{habitState.error}</p>
+                      ) : !habitState.goals?.length ? (
+                        <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                          No shared habits yet. Encourage them to start tracking!
+                        </p>
+                      ) : (
+                        <ul className="space-y-3">
+                          {habitState.goals.map((goal) => (
+                            <li
+                              key={goal.id}
+                              className="rounded-xl border border-white/40 bg-white/80 p-3 shadow-sm dark:border-emerald-700/20 dark:bg-emerald-950/30"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-semibold text-emerald-900 dark:text-emerald-100">
+                                  {goal.habit?.name || goal.goal_text}
+                                </span>
+                                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                                  {goal.xp} XP
+                                </span>
+                              </div>
+                              {goal.goal_text && goal.goal_text !== goal.habit?.name ? (
+                                <p className="text-xs text-slate-600 dark:text-slate-300">Goal: {goal.goal_text}</p>
+                              ) : null}
+                              {goal.habit?.description ? (
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {goal.habit.description}
+                                </p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
