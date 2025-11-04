@@ -4,14 +4,42 @@ from tools.database import db_pool
 
 auth_blueprint = Blueprint("auth", __name__, url_prefix="/api/auth")
 
+
+def _fetch_user(cursor, oauth_id: str):
+    cursor.execute(
+        """
+        SELECT
+            u.id,
+            u.oauth_id,
+            u.email,
+            u.name,
+            u.bio,
+            u.level,
+            u.streak,
+            u.onboarding_complete,
+            u.theme_preference,
+            (
+                SELECT COALESCE(SUM(g.xp), 0)
+                FROM goals g
+                WHERE g.user_id = u.id
+            ) AS total_xp
+        FROM users u
+        WHERE u.oauth_id = %s
+        """,
+        (oauth_id,),
+    )
+    return cursor.fetchone()
+
 @auth_blueprint.route("/google", methods=["POST"])
 def auth_google():
     """
     Exchange Google ID token for a server session.
-    Body: { "id_token": "<jwt from GIS>" }
+    Body: { "id_token": "<jwt from GIS>", "allow_create": true }
+    Set allow_create to false when the client should only authenticate existing users.
     """
     data = request.get_json(silent=True) or {}
     token_str = data.get("id_token")
+    allow_create = data.get("allow_create", True)
     if not token_str:
         return jsonify({"error": "Missing id_token"}), 400
 
@@ -33,21 +61,18 @@ def auth_google():
     try:
         with conn.cursor() as cursor:
             # Check if user already exists
-            cursor.execute("""
-                SELECT id, oauth_id, email, name, bio, level, streak, onboarding_complete, theme_preference
-                FROM users
-                WHERE oauth_id = %s
-            """, (oauth_id,))
-            db_user = cursor.fetchone()
+            db_user = _fetch_user(cursor, oauth_id)
 
             if not db_user:
+                if not allow_create:
+                    conn.rollback()
+                    return jsonify({"error": "Account not found"}), 403
                 # Insert new user
                 cursor.execute("""
                     INSERT INTO users (oauth_id, email, name, bio, level, streak)
                     VALUES (%s, %s, %s, %s, 1, 0)
-                    RETURNING id, oauth_id, email, name, bio, level, streak, onboarding_complete, theme_preference
                 """, (oauth_id, email, name, ""))
-                db_user = cursor.fetchone()
+                db_user = _fetch_user(cursor, oauth_id)
 
             # Commit changes
             conn.commit()
@@ -72,6 +97,7 @@ def auth_google():
         "streak": db_user[6],
         "onboarding_complete": db_user[7],
         "theme_preference": db_user[8],
+        "xp": db_user[9],
         "picture": picture,
     }
 

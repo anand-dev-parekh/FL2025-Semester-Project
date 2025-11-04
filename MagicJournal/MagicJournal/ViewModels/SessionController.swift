@@ -11,6 +11,7 @@ final class SessionController: ObservableObject {
     @Published var lastError: String?
 
     private let apiClient: APIClient
+    private let restorePreferenceKey = "com.magicjournal.restoreGoogleSession"
 
     init(apiClient: APIClient = .shared) {
         self.apiClient = apiClient
@@ -25,20 +26,46 @@ final class SessionController: ObservableObject {
         }
 
         Task { [weak self] in
-            await self?.restorePreviousGoogleSession()
-            await self?.refreshSession()
+            guard let self else { return }
+
+            if UserDefaults.standard.object(forKey: restorePreferenceKey) == nil {
+                UserDefaults.standard.set(true, forKey: restorePreferenceKey)
+            }
+
+            let shouldRestore = UserDefaults.standard.bool(forKey: restorePreferenceKey)
+            if shouldRestore {
+                await self.restorePreviousGoogleSession()
+                await self.refreshSession()
+            } else {
+                await MainActor.run {
+                    self.isRestoringSession = false
+                }
+            }
         }
     }
 
-    func refreshSession() async {
+   func refreshSession() async {
         isRestoringSession = true
         defer { isRestoringSession = false }
-
+        let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        if !isPreview {
+            isRestoringSession = true
+        }
+        defer {
+            if !isPreview {
+                isRestoringSession = false
+            }
+        }
         do {
             user = try await apiClient.currentUser()
             lastError = nil
         } catch {
             lastError = error.localizedDescription
+            #if DEBUG
+            print("[MagicJournal] refreshSession error:", error.localizedDescription)
+            #endif
+            // Swallow silent failures during background refresh; user can retry via manual sign-in.
+            lastError = nil
         }
     }
 
@@ -62,6 +89,7 @@ final class SessionController: ObservableObject {
 
             let profile = try await apiClient.authenticateWithGoogle(idToken: idToken, allowAccountCreation: false)
             user = profile
+            UserDefaults.standard.set(true, forKey: restorePreferenceKey)
         } catch {
             if let apiError = error as? APIError, case .httpError(let status, let message) = apiError, status == 403 {
                 lastError = message.isEmpty ? "No account exists for this Google user. Please create an account via the web app before signing in." : message
@@ -81,6 +109,7 @@ final class SessionController: ObservableObject {
             lastError = error.localizedDescription
         }
         GIDSignIn.sharedInstance.signOut()
+        UserDefaults.standard.set(false, forKey: restorePreferenceKey)
         user = nil
     }
 
