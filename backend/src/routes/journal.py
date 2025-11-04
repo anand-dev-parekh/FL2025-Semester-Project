@@ -1,6 +1,6 @@
 from datetime import datetime
 from datetime import date as date_cls
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from tools.auth_helper import session_user
 from tools.database import db_pool
 
@@ -120,6 +120,7 @@ def list_entries():
             return jsonify({"error": "limit must be an integer"}), 400
 
     conn = db_pool.getconn()
+    new_level = None
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -258,6 +259,17 @@ def upsert_entry():
                     (entry_id,),
                 )
                 entry_row = cur.fetchone()
+                cur.execute(
+                    """
+                    SELECT level
+                    FROM users
+                    WHERE id = %s
+                    """,
+                    (user["id"],),
+                )
+                level_row = cur.fetchone()
+                if level_row:
+                    new_level = level_row[0]
 
         payload = _entry_payload(entry_row) if entry_row else None
         status_code = 201 if created else 200
@@ -270,6 +282,12 @@ def upsert_entry():
                 "xp": goal_update[0],
             },
         }
+        if (
+            new_level is not None
+            and "user" in session
+            and session["user"].get("id") == user["id"]
+        ):
+            session["user"]["level"] = new_level
         return jsonify(response_body), status_code
     finally:
         db_pool.putconn(conn)

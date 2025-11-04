@@ -1,4 +1,4 @@
-from flask import request, jsonify, Blueprint
+from flask import request, jsonify, Blueprint, session
 from tools.auth_helper import session_user
 from tools.database import db_pool 
 
@@ -76,6 +76,7 @@ def create_goal():
     completed = bool(completed)
 
     conn = db_pool.getconn()
+    new_level = None
     try:
         with conn:  # commit/rollback
             with conn.cursor() as cur:
@@ -99,6 +100,13 @@ def create_goal():
                     JOIN habits h ON h.id = ins.habit_id;
                 """, (user["id"], habit_id, goal_text, xp, completed))
                 r = cur.fetchone()
+                cur.execute(
+                    "SELECT level FROM users WHERE id = %s",
+                    (user["id"],),
+                )
+                level_row = cur.fetchone()
+                if level_row:
+                    new_level = level_row[0]
 
         goal = {
             "id": r[0],
@@ -109,6 +117,12 @@ def create_goal():
             "habit_id": r[5],
             "habit": {"id": r[5], "name": r[6], "description": r[7]},
         }
+        if (
+            new_level is not None
+            and "user" in session
+            and session["user"].get("id") == user["id"]
+        ):
+            session["user"]["level"] = new_level
         return jsonify(goal), 201
     finally:
         db_pool.putconn(conn)
@@ -149,6 +163,7 @@ def update_goal(goal_id):
         return jsonify({"error": "No fields to update"}), 400
 
     conn = db_pool.getconn()
+    new_level = None
     try:
         with conn:
             with conn.cursor() as cur:
@@ -185,6 +200,13 @@ def update_goal(goal_id):
                     (habit_id_out,),
                 )
                 h = cur.fetchone()
+                cur.execute(
+                    "SELECT level FROM users WHERE id = %s",
+                    (user["id"],),
+                )
+                level_row = cur.fetchone()
+                if level_row:
+                    new_level = level_row[0]
 
         goal = {
             "id": goal_id_out,
@@ -199,6 +221,12 @@ def update_goal(goal_id):
                 "description": h[2],
             } if h else None,
         }
+        if (
+            new_level is not None
+            and "user" in session
+            and session["user"].get("id") == user["id"]
+        ):
+            session["user"]["level"] = new_level
         return jsonify(goal)
     finally:
         db_pool.putconn(conn)
@@ -211,6 +239,7 @@ def delete_goal(goal_id):
         return jsonify({"error": "Unauthorized"}), 401
 
     conn = db_pool.getconn()
+    new_level = None
     try:
         with conn:
             with conn.cursor() as cur:
@@ -221,7 +250,20 @@ def delete_goal(goal_id):
                 r = cur.fetchone()
                 if not r:
                     return jsonify({"error": "Goal not found"}), 404
+                cur.execute(
+                    "SELECT level FROM users WHERE id = %s",
+                    (user["id"],),
+                )
+                level_row = cur.fetchone()
+                if level_row:
+                    new_level = level_row[0]
         # No body needed; 204 is conventional for DELETE success
+        if (
+            new_level is not None
+            and "user" in session
+            and session["user"].get("id") == user["id"]
+        ):
+            session["user"]["level"] = new_level
         return ("", 204)
     finally:
         db_pool.putconn(conn)

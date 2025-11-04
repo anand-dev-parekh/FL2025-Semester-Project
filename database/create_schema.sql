@@ -124,4 +124,56 @@ CREATE TABLE IF NOT EXISTS user_health_metrics (
 );
 CREATE INDEX IF NOT EXISTS idx_user_health_metrics_user_date ON user_health_metrics(user_id, metric_date);
 
+-- Keep user level aligned to total XP (sum of goal XP)
+CREATE OR REPLACE FUNCTION refresh_user_level(target_user_id BIGINT) RETURNS VOID AS $$
+DECLARE
+  total_xp INTEGER;
+BEGIN
+  IF target_user_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(SUM(xp), 0) INTO total_xp
+  FROM goals
+  WHERE user_id = target_user_id;
+
+  UPDATE users
+  SET level = GREATEST(1, (total_xp / 100) + 1)
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION sync_user_level() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM refresh_user_level(OLD.user_id);
+    RETURN OLD;
+  END IF;
+
+  PERFORM refresh_user_level(NEW.user_id);
+
+  IF TG_OP = 'UPDATE' AND NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+    PERFORM refresh_user_level(OLD.user_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_goals_sync_user_level_insert ON goals;
+DROP TRIGGER IF EXISTS trg_goals_sync_user_level_update ON goals;
+DROP TRIGGER IF EXISTS trg_goals_sync_user_level_delete ON goals;
+
+CREATE TRIGGER trg_goals_sync_user_level_insert
+AFTER INSERT ON goals
+FOR EACH ROW EXECUTE FUNCTION sync_user_level();
+
+CREATE TRIGGER trg_goals_sync_user_level_update
+AFTER UPDATE ON goals
+FOR EACH ROW EXECUTE FUNCTION sync_user_level();
+
+CREATE TRIGGER trg_goals_sync_user_level_delete
+AFTER DELETE ON goals
+FOR EACH ROW EXECUTE FUNCTION sync_user_level();
+
 COMMIT;

@@ -111,26 +111,6 @@ export default function HabitsPage() {
     }
   };
 
-  const adjustXp = async (id, delta) => {
-    const target = goals.find((g) => g.id === id);
-    if (!target) return;
-    const newXp = Math.max(0, (target.xp || 0) + delta);
-    const prev = goals;
-    setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, xp: newXp } : g))); // optimistic
-    try {
-      const updated = await http(`/api/goals/${id}`, {
-        method: "PATCH",
-        body: { xp: newXp },
-      });
-      const upd = updated?.goal ?? updated;
-      setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, ...upd } : g)));
-    } catch (e) {
-      console.error(e);
-      alert("Could not update XP.");
-      setGoals(prev); // revert
-    }
-  };
-
   // local helpers
   const habitsById = useMemo(() => {
     const m = new Map();
@@ -315,8 +295,6 @@ export default function HabitsPage() {
                   habitDescription={habit?.description || ""}
                   onDelete={() => onDeleteGoal(g.id)}
                   onSaveText={(txt) => onEditGoalText(g.id, txt)}
-                  onGainXp={() => adjustXp(g.id, +5)}
-                  onLoseXp={() => adjustXp(g.id, -5)}
                 />
               ))}
             </ul>
@@ -328,7 +306,7 @@ export default function HabitsPage() {
   );
 }
 
-function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText, onGainXp, onLoseXp }) {
+function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(goal.goal_text || "");
 

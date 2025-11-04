@@ -100,7 +100,7 @@ def auth_google():
         "xp": db_user[9],
         "picture": picture,
     }
-
+    print(user_payload)
     session["user"] = user_payload
 
     return jsonify(session["user"]), 200
