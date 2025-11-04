@@ -23,6 +23,7 @@ export default function AuthNavbar() {
 
   const links = [
     { to: "/app", label: "Dashboard" },
+    { to: "/health", label: "Health" },
     { to: "/habits", label: "Habits" },
     { to: "/journal", label: "Journal" },
     { to: "/friends", label: "Friends" },

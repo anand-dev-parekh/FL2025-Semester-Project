@@ -109,4 +109,19 @@ CREATE INDEX IF NOT EXISTS idx_journal_entries_user_id ON journal_entries(user_i
 CREATE INDEX IF NOT EXISTS idx_journal_entries_goal_id ON journal_entries(goal_id);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_entry_date ON journal_entries(entry_date);
 
+-- Daily health metrics synced from HealthKit
+CREATE TABLE IF NOT EXISTS user_health_metrics (
+  id               BIGSERIAL PRIMARY KEY,
+  user_id          BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  metric_date      DATE NOT NULL,
+  steps            INTEGER NOT NULL DEFAULT 0 CHECK (steps >= 0),
+  exercise_minutes INTEGER NOT NULL DEFAULT 0 CHECK (exercise_minutes >= 0),
+  sleep_minutes    INTEGER NOT NULL DEFAULT 0 CHECK (sleep_minutes >= 0),
+  source           TEXT NOT NULL DEFAULT 'apple_health',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, metric_date)
+);
+CREATE INDEX IF NOT EXISTS idx_user_health_metrics_user_date ON user_health_metrics(user_id, metric_date);
+
 COMMIT;

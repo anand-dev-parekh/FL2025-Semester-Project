@@ -8,6 +8,7 @@ import Onboarding from "./pages/Onboarding";
 import SignIn from "./pages/SignIn";
 import Friends from "./pages/Friends";
 import Journal from "./pages/Journal";
+import Health from "./pages/Health";
 
 export default function App() {
   return (
@@ -45,6 +46,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Friends />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/health"
+            element={
+              <ProtectedRoute>
+                <Health />
               </ProtectedRoute>
             }
           />

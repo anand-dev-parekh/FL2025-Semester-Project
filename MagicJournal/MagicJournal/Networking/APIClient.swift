@@ -80,6 +80,41 @@ final class APIClient {
         _ = try handleResponse(data: data, response: response) as Empty
     }
 
+    func uploadHealthSummaries(_ summaries: [HealthDailySummary]) async throws {
+        guard !summaries.isEmpty else { return }
+
+        struct Payload: Encodable {
+            struct Record: Encodable {
+                let date: String
+                let steps: Int
+                let exerciseMinutes: Int
+                let sleepMinutes: Int
+                let source: String
+            }
+
+            let records: [Record]
+        }
+
+        let records = summaries.map { summary in
+            Payload.Record(
+                date: summary.isoDateString,
+                steps: summary.steps,
+                exerciseMinutes: summary.exerciseMinutes,
+                sleepMinutes: summary.sleepMinutes,
+                source: "apple_health"
+            )
+        }
+
+        var request = URLRequest(url: endpoint("api/health/daily"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(Payload(records: records))
+
+        let (data, response) = try await session.data(for: request)
+        struct UploadResponse: Decodable { let updated: Int? }
+        _ = try handleResponse(data: data, response: response) as UploadResponse
+    }
+
     // MARK: - Helpers
 
     private func endpoint(_ path: String) -> URL {

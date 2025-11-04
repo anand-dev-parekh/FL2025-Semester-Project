@@ -18,6 +18,7 @@ final class HealthKitManager {
         // Quantity types most users have
         let quantityIds: [HKQuantityTypeIdentifier] = [
             .stepCount,
+            .appleExerciseTime,
             .activeEnergyBurned,
             .distanceWalkingRunning,
             .heartRate
@@ -33,6 +34,20 @@ final class HealthKitManager {
         }
 
         return set
+    }
+
+    private var requiredReadTypes: [HKObjectType] {
+        var required = [HKObjectType]()
+        if let steps = HKObjectType.quantityType(forIdentifier: .stepCount) {
+            required.append(steps)
+        }
+        if let exercise = HKObjectType.quantityType(forIdentifier: .appleExerciseTime) {
+            required.append(exercise)
+        }
+        if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) {
+            required.append(sleep)
+        }
+        return required
     }
 
     @MainActor
@@ -70,7 +85,173 @@ final class HealthKitManager {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    func fetchDailySummaries(forPastDays days: Int) async throws -> [HealthDailySummary] {
+        guard days > 0 else { return [] }
+        guard isHealthDataAvailable else {
+            throw NSError(domain: "HealthKit", code: 2, userInfo: [NSLocalizedDescriptionKey: "Health data is unavailable on this device."])
+        }
+        let calendar = Calendar.current
+        let now = Date()
+        let anchorDay = calendar.startOfDay(for: now)
+        guard let startDate = calendar.date(byAdding: .day, value: -(days - 1), to: anchorDay) else {
+            return []
+        }
+
+        async let stepTotalsTask = dailyCumulativeSum(
+            for: .stepCount,
+            unit: .count(),
+            start: startDate,
+            end: now
+        )
+        async let exerciseTotalsTask = dailyCumulativeSum(
+            for: .appleExerciseTime,
+            unit: .minute(),
+            start: startDate,
+            end: now
+        )
+        async let sleepTotalsTask = dailySleepMinutes(start: startDate, end: now)
+
+        let stepTotals = try await stepTotalsTask
+
+        let exerciseTotals: [Date: Double]
+        do {
+            exerciseTotals = try await exerciseTotalsTask
+        } catch {
+            #if DEBUG
+            print("[HealthKitManager] Exercise minutes not available:", error.localizedDescription)
+            #endif
+            exerciseTotals = [:]
+        }
+
+        let sleepTotals: [Date: Double]
+        do {
+            sleepTotals = try await sleepTotalsTask
+        } catch {
+            #if DEBUG
+            print("[HealthKitManager] Sleep data not available:", error.localizedDescription)
+            #endif
+            sleepTotals = [:]
+        }
+
+        var summaries = [HealthDailySummary]()
+        for offset in 0..<days {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: anchorDay) else { continue }
+            let startOfDay = calendar.startOfDay(for: day)
+            let steps = Int((stepTotals[startOfDay] ?? 0).rounded())
+            let exerciseMinutes = Int((exerciseTotals[startOfDay] ?? 0).rounded())
+            let sleepMinutes = Int((sleepTotals[startOfDay] ?? 0).rounded())
+            summaries.append(
+                HealthDailySummary(
+                    date: startOfDay,
+                    steps: max(0, steps),
+                    exerciseMinutes: max(0, exerciseMinutes),
+                    sleepMinutes: max(0, sleepMinutes)
+                )
+            )
+        }
+
+        return summaries.sorted { $0.date > $1.date }
+    }
+
     // MARK: - Helpers
+
+    private func dailyCumulativeSum(for identifier: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date) async throws -> [Date: Double] {
+        guard let type = HKObjectType.quantityType(forIdentifier: identifier) else { return [:] }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let interval = DateComponents(day: 1)
+        let calendar = Calendar.current
+        let anchor = calendar.startOfDay(for: end)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsCollectionQuery(
+                quantityType: type,
+                quantitySamplePredicate: predicate,
+                options: [.cumulativeSum],
+                anchorDate: anchor,
+                intervalComponents: interval
+            )
+
+            query.initialResultsHandler = { _, collection, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var results: [Date: Double] = [:]
+                collection?.enumerateStatistics(from: start, to: end) { statistics, _ in
+                    let day = calendar.startOfDay(for: statistics.startDate)
+                    if let value = statistics.sumQuantity()?.doubleValue(for: unit) {
+                        results[day] = value
+                    } else if results[day] == nil {
+                        results[day] = 0
+                    }
+                }
+                continuation.resume(returning: results)
+            }
+
+            store.execute(query)
+        }
+    }
+
+    private func dailySleepMinutes(start: Date, end: Date) async throws -> [Date: Double] {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return [:] }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let calendar = Calendar.current
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { [weak self] _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let samples = samples as? [HKCategorySample] else {
+                    continuation.resume(returning: [:])
+                    return
+                }
+
+                var totals: [Date: Double] = [:]
+                let asleepValues = self?.asleepCategoryValues() ?? []
+
+                for sample in samples where asleepValues.contains(sample.value) {
+                    var segmentStart = max(sample.startDate, start)
+                    let segmentEndLimit = min(sample.endDate, end)
+
+                    while segmentStart < segmentEndLimit {
+                        let dayStart = calendar.startOfDay(for: segmentStart)
+                        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
+                        let currentSegmentEnd = min(dayEnd, segmentEndLimit)
+                        let minutes = currentSegmentEnd.timeIntervalSince(segmentStart) / 60.0
+                        if minutes > 0 {
+                            totals[dayStart, default: 0] += minutes
+                        }
+                        segmentStart = currentSegmentEnd
+                    }
+                }
+
+                continuation.resume(returning: totals)
+            }
+
+            self.store.execute(query)
+        }
+    }
+
+    private func asleepCategoryValues() -> Set<Int> {
+        var values: Set<Int> = [HKCategoryValueSleepAnalysis.asleep.rawValue]
+        values.insert(HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue)
+        if #available(iOS 16.0, *) {
+            values.insert(HKCategoryValueSleepAnalysis.asleepCore.rawValue)
+            values.insert(HKCategoryValueSleepAnalysis.asleepDeep.rawValue)
+            values.insert(HKCategoryValueSleepAnalysis.asleepREM.rawValue)
+        }
+        return values
+    }
 
     private func fetchQuantitySamples(_ id: HKQuantityTypeIdentifier, start: Date, end: Date, limit: Int) async throws -> [[String: Any]] {
         guard let type = HKObjectType.quantityType(forIdentifier: id) else { return [] }
@@ -90,13 +271,14 @@ final class HealthKitManager {
                 }
                 cont.resume(returning: arr)
             }
-            HKHealthStore().execute(q)
+            store.execute(q)
         }
     }
 
     private func unit(for id: HKQuantityTypeIdentifier) -> HKUnit {
         switch id {
         case .stepCount: return HKUnit.count()
+        case .appleExerciseTime: return HKUnit.minute()
         case .activeEnergyBurned: return HKUnit.kilocalorie()
         case .distanceWalkingRunning: return HKUnit.meter()
         case .heartRate: return HKUnit.count().unitDivided(by: HKUnit.minute())
@@ -125,7 +307,7 @@ final class HealthKitManager {
                 }
                 cont.resume(returning: arr)
             }
-            HKHealthStore().execute(q)
+            store.execute(q)
         }
     }
 
@@ -139,7 +321,7 @@ final class HealthKitManager {
                 if let error = error { return cont.resume(throwing: error) }
                 cont.resume(returning: samples as? [HKCategorySample] ?? [])
             }
-            HKHealthStore().execute(q)
+            store.execute(q)
         }
 
         let totalSec = samples.reduce(0.0) { acc, s in acc + s.endDate.timeIntervalSince(s.startDate) }
