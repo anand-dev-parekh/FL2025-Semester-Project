@@ -1,4 +1,4 @@
-# FL2025: Group 4& Magic Journal;
+# FL2025: Group 4 - Magic Journal;
 
 ## Team Members
 - **&lt;Andrew Cai&gt;**: &lt;andrew.cai@wustl.edu&gt; ; &lt;acai6304&gt;
