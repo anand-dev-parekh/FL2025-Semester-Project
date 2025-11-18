@@ -68,6 +68,44 @@ export default function Dashboard() {
     [goals],
   );
 
+  const frequentHabits = useMemo(() => {
+    const totals = new Map();
+
+    for (const goal of goals) {
+      const habitId = goal?.habit_id ?? goal?.habit?.id;
+      if (!habitId) continue;
+
+      const habitName = goal?.habit?.name || "Habit";
+      const habitDescription = goal?.habit?.description || "";
+      const xp = Number(goal?.xp);
+      const safeXp = Number.isFinite(xp) ? xp : 0;
+
+      const current = totals.get(habitId) || {
+        id: habitId,
+        name: habitName,
+        description: habitDescription,
+        totalXp: 0,
+        goalsCount: 0,
+      };
+
+      totals.set(habitId, {
+        ...current,
+        name: current.name || habitName,
+        description: current.description || habitDescription,
+        totalXp: current.totalXp + safeXp,
+        goalsCount: current.goalsCount + 1,
+      });
+    }
+
+    return Array.from(totals.values())
+      .sort(
+        (a, b) =>
+          b.totalXp - a.totalXp ||
+          b.goalsCount - a.goalsCount ||
+          a.name.localeCompare(b.name),
+      )
+      .slice(0, 3);
+  }, [goals]);
   const level = Math.floor(totalXp / XP_PER_LEVEL) + 1;
   const xpIntoLevel = totalXp % XP_PER_LEVEL;
   const xpToNextLevel = XP_PER_LEVEL - xpIntoLevel || XP_PER_LEVEL;
@@ -90,6 +128,67 @@ export default function Dashboard() {
             <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
               Use the habits page to track your goals and visit your profile to update your preferences.
             </p>
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <div className="rounded-3xl border border-white/50 bg-white/80 p-6 shadow-lg backdrop-blur-md transition-colors duration-500 dark:border-slate-800/70 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100">
+                Frequent Habits
+              </h4>
+              <span className="rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-900/50 dark:text-emerald-200">
+                Top by XP earned
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              Your most productive habits based on the XP you’ve earned from goals tied to them.
+            </p>
+
+            {loadingXp ? (
+              <div className="mt-6 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-12 w-full animate-pulse rounded-2xl bg-slate-200/70 dark:bg-slate-800/70"
+                  />
+                ))}
+              </div>
+            ) : frequentHabits.length === 0 ? (
+              <p className="mt-4 rounded-2xl border border-dashed border-emerald-200/70 bg-emerald-50/60 p-4 text-sm text-slate-600 dark:border-emerald-700/50 dark:bg-emerald-900/40 dark:text-slate-300">
+                Complete goals on the Habits page to see your top habits here.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-4">
+                {frequentHabits.map((habit) => (
+                  <li
+                    key={habit.id}
+                    className="rounded-2xl border border-emerald-200/60 bg-emerald-50/70 p-4 shadow-sm transition-colors duration-300 dark:border-emerald-700/50 dark:bg-emerald-900/40"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-semibold text-emerald-900 dark:text-emerald-100">
+                          {habit.name}
+                        </div>
+                        {habit.description ? (
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            {habit.description}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="text-right text-sm">
+                        <div className="font-semibold text-emerald-700 dark:text-emerald-200">
+                          +{habit.totalXp} XP
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {habit.goalsCount} goal{habit.goalsCount === 1 ? "" : "s"} tracked
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
 
