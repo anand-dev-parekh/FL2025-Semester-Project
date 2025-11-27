@@ -5,3 +5,4 @@ Backend/venv
 *.pyc
 *__pycache____pycache__/
 *.pyc
+MagicJournal/MagicJournal/Configuration/Secrets.xcconfig

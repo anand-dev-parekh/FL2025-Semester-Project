@@ -6,22 +6,6 @@ import ThemeToggle from "./ThemeToggle";
 const navLinkBase =
   "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 dark:text-slate-300 dark:hover:text-emerald-300";
 
-function DashboardIcon(props) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M3 3h7v9H3zM14 3h7v5h-7zM14 11h7v10h-7zM3 15h7v6H3z" />
-    </svg>
-  );
-}
 
 export default function AuthNavbar() {
   const navigate = useNavigate();
@@ -38,7 +22,8 @@ export default function AuthNavbar() {
   }, [logout, navigate]);
 
   const links = [
-    { to: "/app", label: "Dashboard", icon: DashboardIcon },
+    { to: "/app", label: "Dashboard" },
+    { to: "/health", label: "Health" },
     { to: "/habits", label: "Habits" },
     { to: "/journal", label: "Journal" },
     { to: "/friends", label: "Friends" },

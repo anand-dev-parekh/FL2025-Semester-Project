@@ -109,4 +109,71 @@ CREATE INDEX IF NOT EXISTS idx_journal_entries_user_id ON journal_entries(user_i
 CREATE INDEX IF NOT EXISTS idx_journal_entries_goal_id ON journal_entries(goal_id);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_entry_date ON journal_entries(entry_date);
 
+-- Daily health metrics synced from HealthKit
+CREATE TABLE IF NOT EXISTS user_health_metrics (
+  id               BIGSERIAL PRIMARY KEY,
+  user_id          BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  metric_date      DATE NOT NULL,
+  steps            INTEGER NOT NULL DEFAULT 0 CHECK (steps >= 0),
+  exercise_minutes INTEGER NOT NULL DEFAULT 0 CHECK (exercise_minutes >= 0),
+  sleep_minutes    INTEGER NOT NULL DEFAULT 0 CHECK (sleep_minutes >= 0),
+  source           TEXT NOT NULL DEFAULT 'apple_health',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, metric_date)
+);
+CREATE INDEX IF NOT EXISTS idx_user_health_metrics_user_date ON user_health_metrics(user_id, metric_date);
+
+-- Keep user level aligned to total XP (sum of goal XP)
+CREATE OR REPLACE FUNCTION refresh_user_level(target_user_id BIGINT) RETURNS VOID AS $$
+DECLARE
+  total_xp INTEGER;
+BEGIN
+  IF target_user_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(SUM(xp), 0) INTO total_xp
+  FROM goals
+  WHERE user_id = target_user_id;
+
+  UPDATE users
+  SET level = GREATEST(1, (total_xp / 100) + 1)
+  WHERE id = target_user_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION sync_user_level() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM refresh_user_level(OLD.user_id);
+    RETURN OLD;
+  END IF;
+
+  PERFORM refresh_user_level(NEW.user_id);
+
+  IF TG_OP = 'UPDATE' AND NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+    PERFORM refresh_user_level(OLD.user_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_goals_sync_user_level_insert ON goals;
+DROP TRIGGER IF EXISTS trg_goals_sync_user_level_update ON goals;
+DROP TRIGGER IF EXISTS trg_goals_sync_user_level_delete ON goals;
+
+CREATE TRIGGER trg_goals_sync_user_level_insert
+AFTER INSERT ON goals
+FOR EACH ROW EXECUTE FUNCTION sync_user_level();
+
+CREATE TRIGGER trg_goals_sync_user_level_update
+AFTER UPDATE ON goals
+FOR EACH ROW EXECUTE FUNCTION sync_user_level();
+
+CREATE TRIGGER trg_goals_sync_user_level_delete
+AFTER DELETE ON goals
+FOR EACH ROW EXECUTE FUNCTION sync_user_level();
+
 COMMIT;

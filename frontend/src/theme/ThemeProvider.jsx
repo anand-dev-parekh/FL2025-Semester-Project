@@ -8,6 +8,17 @@ function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function loadStoredPreference() {
+  if (typeof window === "undefined") {
+    return "system";
+  }
+  const stored = window.localStorage.getItem("theme-preference");
+  if (stored === "light" || stored === "dark" || stored === "system") {
+    return stored;
+  }
+  return "system";
+}
+
 function normalizePreference(value) {
   const next = typeof value === "string" ? value.toLowerCase() : "system";
   if (next === "light" || next === "dark") {
@@ -17,8 +28,14 @@ function normalizePreference(value) {
 }
 
 export function ThemeProvider({ children }) {
-  const [preference, setPreferenceState] = useState("system");
-  const [theme, setTheme] = useState(() => getSystemTheme());
+  const [preference, setPreferenceState] = useState(() => loadStoredPreference());
+  const [theme, setTheme] = useState(() => {
+    const initialPreference = loadStoredPreference();
+    if (initialPreference === "light" || initialPreference === "dark") {
+      return initialPreference;
+    }
+    return getSystemTheme();
+  });
 
   useEffect(() => {
     if (preference === "system") {
@@ -26,6 +43,11 @@ export function ThemeProvider({ children }) {
       return;
     }
     setTheme(preference);
+  }, [preference]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("theme-preference", preference);
   }, [preference]);
 
   useEffect(() => {

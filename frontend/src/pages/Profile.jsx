@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/useAuth";
 import { http } from "../api/http";
 import AuthNavbar from "../components/AuthNavbar";
-import { useTheme } from "../theme/useTheme";
 
 const cardClasses =
   "rounded-3xl border border-white/50 bg-white/80 p-8 shadow-xl backdrop-blur-md transition-colors duration-500 dark:border-slate-800/70 dark:bg-slate-900/70";
@@ -14,13 +13,11 @@ const buttonBase =
 
 export default function Profile() {
   const { user: authUser, refreshUser } = useAuth();
-  const { preference: themePreferenceContext, setPreference: setThemePreference } = useTheme();
 
   const [form, setForm] = useState(() => ({
     fullName: authUser?.name || "",
     email: authUser?.email || "",
     bio: authUser?.bio || "",
-    themePreference: themePreferenceContext || authUser?.theme_preference || "system",
   }));
 
   const [errors, setErrors] = useState({});
@@ -39,7 +36,6 @@ export default function Profile() {
           fullName: u.name || "",
           email: u.email || "",
           bio: u.bio || "",
-          themePreference: u.theme_preference || "system",
         });
       } catch (err) {
         console.error(err);
@@ -75,7 +71,6 @@ export default function Profile() {
         body: {
           name: form.fullName,
           bio: form.bio === "" ? null : form.bio,
-          theme_preference: form.themePreference,
         },
       });
 
@@ -84,11 +79,7 @@ export default function Profile() {
         fullName: saved.name ?? f.fullName,
         email: saved.email ?? f.email,
         bio: saved.bio ?? f.bio,
-        themePreference: saved.theme_preference ?? f.themePreference,
       }));
-      if (saved.theme_preference) {
-        setThemePreference(saved.theme_preference);
-      }
       try {
         await refreshUser();
       } catch (refreshErr) {
