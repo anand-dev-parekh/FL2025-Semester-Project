@@ -1,14 +1,14 @@
 from flask import request, jsonify, Blueprint
-from tools.auth_helper import session_user
+from tools.auth_helper import ensure_auth
 from tools.database import db_pool 
 
 goal_blueprint = Blueprint("goals", __name__, url_prefix="/api/goals")
 
 @goal_blueprint.route("", methods=["GET"])
 def get_goals():
-    user = session_user()
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 401
+    user, error = ensure_auth()
+    if error:
+        return error
     
     conn = db_pool.getconn()
     try:
@@ -54,9 +54,9 @@ def get_goals():
 # -------- POST /api/goals (create) --------
 @goal_blueprint.route("", methods=["POST"])
 def create_goal():
-    user = session_user()
-    if not user or not user.get("id"):
-        return jsonify({"error": "Unauthorized"}), 401
+    user, error = ensure_auth()
+    if error:
+        return error
 
     data = request.get_json(silent=True) or {}
     habit_id = data.get("habit_id")
@@ -116,9 +116,9 @@ def create_goal():
 # -------- PATCH /api/goals/<goal_id> (update, simplified) --------
 @goal_blueprint.route("/<int:goal_id>", methods=["PATCH"])
 def update_goal(goal_id):
-    user = session_user()
-    if not user or not user.get("id"):
-        return jsonify({"error": "Unauthorized"}), 401
+    user, error = ensure_auth()
+    if error:
+        return error
 
     data = request.get_json(silent=True) or {}
 
@@ -206,9 +206,9 @@ def update_goal(goal_id):
 # -------- DELETE /api/goals/<goal_id> --------
 @goal_blueprint.route("/<int:goal_id>", methods=["DELETE"])
 def delete_goal(goal_id):
-    user = session_user()
-    if not user or not user.get("id"):
-        return jsonify({"error": "Unauthorized"}), 401
+    user, error = ensure_auth()
+    if error:
+        return error
 
     conn = db_pool.getconn()
     try:

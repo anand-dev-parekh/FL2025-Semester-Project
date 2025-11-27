@@ -1,7 +1,7 @@
 from datetime import datetime
 from datetime import date as date_cls
 from flask import Blueprint, jsonify, request
-from tools.auth_helper import session_user
+from tools.auth_helper import ensure_auth
 from tools.database import db_pool
 
 journal_blueprint = Blueprint("journal", __name__, url_prefix="/api/journal")
@@ -23,13 +23,6 @@ def _parse_date(value):
         return datetime.strptime(value.strip(), "%Y-%m-%d").date()
     except ValueError:
         return None
-
-
-def _ensure_auth():
-    user = session_user()
-    if not user or not user.get("id"):
-        return None, (jsonify({"error": "Unauthorized"}), 401)
-    return user, None
 
 
 def _normalize_completion_level(value):
@@ -62,7 +55,7 @@ def _entry_payload(row):
 
 @journal_blueprint.route("/entries", methods=["GET"])
 def list_entries():
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -133,7 +126,7 @@ def list_entries():
 
 @journal_blueprint.route("/entries", methods=["POST"])
 def upsert_entry():
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 

@@ -1,15 +1,8 @@
 from flask import request, jsonify, Blueprint
-from tools.auth_helper import session_user
+from tools.auth_helper import ensure_auth
 from tools.database import db_pool
 
 friend_blueprint = Blueprint("friends", __name__, url_prefix="/api/friends")
-
-
-def _ensure_auth():
-    user = session_user()
-    if not user or not user.get("id"):
-        return None, (jsonify({"error": "Unauthorized"}), 401)
-    return user, None
 
 
 def _build_user_payload(row):
@@ -23,7 +16,7 @@ def _build_user_payload(row):
 
 @friend_blueprint.route("", methods=["GET"])
 def get_friends():
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -68,7 +61,7 @@ def get_friends():
 
 @friend_blueprint.route("/requests", methods=["GET"])
 def get_friend_requests():
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -127,7 +120,7 @@ def get_friend_requests():
 
 @friend_blueprint.route("/requests", methods=["POST"])
 def send_friend_request():
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -288,7 +281,7 @@ def send_friend_request():
 
 @friend_blueprint.route("/requests/<int:request_id>/accept", methods=["POST"])
 def accept_friend_request(request_id):
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -361,7 +354,7 @@ def accept_friend_request(request_id):
 
 @friend_blueprint.route("/requests/<int:request_id>/decline", methods=["POST"])
 def decline_friend_request(request_id):
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -400,7 +393,7 @@ def decline_friend_request(request_id):
 
 @friend_blueprint.route("/requests/<int:request_id>/cancel", methods=["POST"])
 def cancel_friend_request(request_id):
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -439,7 +432,7 @@ def cancel_friend_request(request_id):
 
 @friend_blueprint.route("/<int:friend_user_id>", methods=["DELETE"])
 def delete_friend(friend_user_id):
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 
@@ -485,7 +478,7 @@ def delete_friend(friend_user_id):
 
 @friend_blueprint.route("/<int:friend_id>/habits", methods=["GET"])
 def get_friend_habits(friend_id):
-    user, error = _ensure_auth()
+    user, error = ensure_auth()
     if error:
         return error
 

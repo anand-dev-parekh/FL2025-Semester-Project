@@ -1,14 +1,14 @@
 from flask import request, jsonify, Blueprint
-from tools.auth_helper import session_user
+from tools.auth_helper import ensure_auth
 from tools.database import db_pool 
 
 habit_blueprint = Blueprint("habits", __name__, url_prefix="/api/habits")
 
 @habit_blueprint.route("", methods=["GET"])
 def get_habits():
-    user = session_user()
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 401
+    user, error = ensure_auth()
+    if error:
+        return error
     
     conn = db_pool.getconn()
     try:

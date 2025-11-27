@@ -1,14 +1,14 @@
 from flask import request, jsonify, Blueprint, session
-from tools.auth_helper import session_user
+from tools.auth_helper import ensure_auth
 from tools.database import db_pool 
 
 user_blueprint = Blueprint("user", __name__, url_prefix="/api/user")
 
 @user_blueprint.route("/me", methods=["GET"])
 def get_user():
-    user = session_user()
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 401
+    user, error = ensure_auth()
+    if error:
+        return error
     
     conn = db_pool.getconn()
     try:
@@ -39,9 +39,9 @@ def get_user():
 
 @user_blueprint.route("/me", methods=["PATCH"])
 def update_user():
-    u = session_user()
-    if not u or not u.get("id"):
-        return jsonify({"error": "Not authenticated"}), 401
+    u, error = ensure_auth()
+    if error:
+        return error
 
     data = request.get_json() or {}
 

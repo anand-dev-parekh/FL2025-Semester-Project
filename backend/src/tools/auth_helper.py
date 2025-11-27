@@ -1,4 +1,4 @@
-from flask import session, current_app
+from flask import session, current_app, jsonify
 from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
 
@@ -24,3 +24,13 @@ def session_user():
     if "user" in session:
         return session["user"]
     return None
+
+
+def ensure_auth():
+    """
+    Return (user, error) ensuring a session user exists with an id.
+    """
+    user = session_user()
+    if not user or not user.get("id"):
+        return None, (jsonify({"error": "Unauthorized"}), 401)
+    return user, None
