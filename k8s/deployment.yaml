@@ -1,0 +1,209 @@
+# -----------------------------
+# 1) DATABASE: StatefulSet
+# -----------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: magic-journal-db
+  labels:
+    app: magic-journal-db
+spec:
+  selector:
+    matchLabels:
+      app: magic-journal-db
+  serviceName: magic-journal-db
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: magic-journal-db
+    spec:
+      containers:
+        - name: magic-journal-db
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "magic_journal"
+            - name: POSTGRES_USER
+              value: "anandparekh"
+            - name: POSTGRES_PASSWORD
+              value: "REPLACE"
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+---
+# -----------------------------
+# 2) DATABASE: Service
+# -----------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: magic-journal-db
+spec:
+  selector:
+    app: magic-journal-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+# -----------------------------
+# 3) BACKEND: Deployment
+# -----------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magic-journal-backend
+  labels:
+    app: magic-journal-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: magic-journal-backend
+  template:
+    metadata:
+      labels:
+        app: magic-journal-backend
+    spec:
+      containers:
+        - name: magic-journal-backend
+          image: magic-backend:release-v1
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5000
+          env:
+            # --- app config ---
+            - name: SECRET_KEY
+              value: "change-me"
+            - name: GOOGLE_OAUTH_CLIENT_ID
+              value: "542640488445-rqs1hl322dvuqe6pqson6vfqudtghl4k.apps.googleusercontent.com"
+            # from the browser’s POV, ingress is on localhost:8080
+            - name: FRONTEND_ORIGIN
+              value: "http://localhost:8080"
+            - name: DEV_HTTP
+              value: "1"
+
+            # --- database config (matches docker-compose defaults) ---
+            - name: DB_HOST
+              value: "magic-journal-db"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "magic_journal"
+            - name: DB_USER
+              value: "anandparekh"
+            - name: DB_PASSWORD
+              value: "Replace"
+
+---
+# -----------------------------
+# 4) BACKEND: Service
+# -----------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: magic-journal-backend
+spec:
+  selector:
+    app: magic-journal-backend
+  ports:
+    - port: 5000
+      targetPort: 5000
+  type: ClusterIP
+
+---
+# -----------------------------
+# 5) FRONTEND: Deployment
+# -----------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magic-journal-frontend
+  labels:
+    app: magic-journal-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: magic-journal-frontend
+  template:
+    metadata:
+      labels:
+        app: magic-journal-frontend
+    spec:
+      containers:
+        - name: magic-journal-frontend
+          image: magic-frontend:release-v1
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5173
+          env:
+            # Frontend talks to backend through ingress
+            - name: VITE_BACKEND_API_URL
+              value: "http://localhost:8080/api"
+            - name: VITE_GOOGLE_CLIENT_ID
+              value: "542640488445-rqs1hl322dvuqe6pqson6vfqudtghl4k.apps.googleusercontent.com"
+
+---
+# -----------------------------
+# 6) FRONTEND: Service
+# -----------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: magic-journal-frontend
+spec:
+  selector:
+    app: magic-journal-frontend
+  ports:
+    - port: 5173
+      targetPort: 5173
+  type: ClusterIP
+
+---
+# -----------------------------
+# 7) INGRESS: route / -> frontend, /api -> backend
+# -----------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: magic-journal-ingress
+  annotations:
+    # Allow regex paths + strip /api prefix for backend
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - http:
+        paths:
+          # All /api/... goes to backend
+          - pathType: ImplementationSpecific
+            path: /api(/|$)(.*)
+            backend:
+              service:
+                name: magic-journal-backend
+                port:
+                  number: 5000
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: magic-journal-frontend-ingress
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: magic-journal-frontend
+                port:
+                  number: 5173
