@@ -71,7 +71,21 @@ spec:
       labels:
         app: magic-journal-backend
     spec:
+      volumes:
+        - name: ollama-models
+          emptyDir: {}
       containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 11434
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: "24h"
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
         - name: magic-journal-backend
           image: magic-backend:release-v1
           imagePullPolicy: Never
@@ -88,6 +102,10 @@ spec:
               value: "http://localhost:8080"
             - name: DEV_HTTP
               value: "1"
+            - name: OLLAMA_BASE_URL
+              value: "http://127.0.0.1:11434"
+            - name: OLLAMA_MODEL
+              value: "phi3:mini"
 
             # --- database config (matches docker-compose defaults) ---
             - name: DB_HOST
@@ -99,7 +117,10 @@ spec:
             - name: DB_USER
               value: "anandparekh"
             - name: DB_PASSWORD
-              value: "Replace"
+              value: "REPLACE"
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
 
 ---
 # -----------------------------

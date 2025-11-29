@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthNavbar from "../components/AuthNavbar";
 import { fetchDailyHealth } from "../api/health";
+import { requestWiseAdvice } from "../api/ai";
+import wizardImg from "../assets/wizard_2d.jpg";
 
 const RANGE_OPTIONS = [
   { label: "7 days", value: 7 },
@@ -29,11 +31,48 @@ function normalizeRecord(record) {
   };
 }
 
+function WiseWizardAvatar() {
+  return (
+    <div className="h-16 w-16 overflow-hidden rounded-2xl border border-indigo-500/50 bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 shadow-md">
+      <img
+        src={wizardImg}
+        alt="Wise Wizard illustration"
+        className="h-full w-full object-cover"
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
 export default function Health() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [days, setDays] = useState(RANGE_OPTIONS[0].value);
+  const [wizardAdvice, setWizardAdvice] = useState("");
+  const [wizardError, setWizardError] = useState("");
+  const [wizardLoading, setWizardLoading] = useState(false);
+  const [wizardContext, setWizardContext] = useState(null);
+
+  const summary = useMemo(() => {
+    if (records.length === 0) {
+      return null;
+    }
+    const totals = records.reduce(
+      (acc, record) => ({
+        steps: acc.steps + (record.steps || 0),
+        exerciseMinutes: acc.exerciseMinutes + (record.exerciseMinutes || 0),
+        sleepMinutes: acc.sleepMinutes + (record.sleepMinutes || 0),
+      }),
+      { steps: 0, exerciseMinutes: 0, sleepMinutes: 0 },
+    );
+
+    return {
+      averageSteps: Math.round(totals.steps / records.length),
+      averageExercise: Math.round(totals.exerciseMinutes / records.length),
+      averageSleepMinutes: Math.round(totals.sleepMinutes / records.length),
+    };
+  }, [records]);
 
   const loadRecords = useCallback(
     async (requestedDays = days) => {
@@ -66,25 +105,46 @@ export default function Health() {
     loadRecords(days);
   }, [days, loadRecords]);
 
-  const summary = useMemo(() => {
-    if (records.length === 0) {
-      return null;
+  const summonWiseWizard = useCallback(async () => {
+    if (!summary) {
+      setWizardError("We need at least a few days of data before the wizard can advise you.");
+      return;
     }
-    const totals = records.reduce(
-      (acc, record) => ({
-        steps: acc.steps + (record.steps || 0),
-        exerciseMinutes: acc.exerciseMinutes + (record.exerciseMinutes || 0),
-        sleepMinutes: acc.sleepMinutes + (record.sleepMinutes || 0),
-      }),
-      { steps: 0, exerciseMinutes: 0, sleepMinutes: 0 },
-    );
-
-    return {
-      averageSteps: Math.round(totals.steps / records.length),
-      averageExercise: Math.round(totals.exerciseMinutes / records.length),
-      averageSleepMinutes: Math.round(totals.sleepMinutes / records.length),
-    };
-  }, [records]);
+    setWizardLoading(true);
+    setWizardAdvice("");
+    setWizardError("");
+    try {
+      const latest = records[0];
+      const prompt = [
+        "You are the Wise Wellness Wizard guiding a friendly check-in.",
+        `Average steps per day: ${summary.averageSteps}.`,
+        `Average exercise minutes per day: ${summary.averageExercise}.`,
+        `Average sleep hours per night: ${(summary.averageSleepMinutes / 60).toFixed(1)}.`,
+        latest
+          ? `Most recent day (${latest.date}) stats — steps: ${latest.steps}, exercise minutes: ${latest.exerciseMinutes}, sleep hours: ${(latest.sleepMinutes / 60).toFixed(1)}.`
+          : null,
+        "Share 2-3 sentences of encouraging, actionable advice.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const systemPrompt =
+        "You are a supportive wellness guide called the Wise Wizard. Keep tone playful but respectful. Offer concrete suggestions based on the provided stats.";
+      const response = await requestWiseAdvice({
+        prompt,
+        systemPrompt,
+        context: wizardContext || undefined,
+      });
+      setWizardAdvice(response?.response?.trim() || "The wizard had no words this time.");
+      if (response?.context) {
+        setWizardContext(response.context);
+      }
+    } catch (err) {
+      console.error("Wise wizard request failed", err);
+      setWizardError("The Wise Wizard is napping. Try again in a moment.");
+    } finally {
+      setWizardLoading(false);
+    }
+  }, [records, summary, wizardContext]);
 
   return (
     <>
@@ -176,6 +236,39 @@ export default function Health() {
                   </div>
                 </div>
               ) : null}
+              <div className="mt-8 rounded-3xl border border-indigo-200/70 bg-indigo-50/70 p-5 shadow-sm dark:border-indigo-500/40 dark:bg-indigo-900/40">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-4">
+                    <WiseWizardAvatar />
+                    <div>
+                      <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                        Summon the Wise Wizard
+                      </p>
+                      <p className="text-sm text-indigo-700 dark:text-indigo-200/80">
+                        Get a quick pulse check based on your latest health streaks.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={summonWiseWizard}
+                    disabled={wizardLoading || !summary}
+                    className="rounded-full border border-indigo-300 bg-white/80 px-4 py-2 text-sm font-medium text-indigo-800 shadow-sm transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-100 dark:hover:bg-indigo-900/50"
+                  >
+                    {wizardLoading ? "Conjuring..." : "Ask for advice"}
+                  </button>
+                </div>
+                {wizardError ? (
+                  <p className="mt-4 rounded-2xl border border-rose-200/70 bg-rose-50/70 px-3 py-2 text-sm text-rose-800 dark:border-rose-500/60 dark:bg-rose-900/40 dark:text-rose-100">
+                    {wizardError}
+                  </p>
+                ) : null}
+                {wizardAdvice ? (
+                  <p className="mt-4 rounded-2xl bg-white/80 p-4 text-sm leading-relaxed text-slate-800 shadow-inner dark:bg-slate-900/50 dark:text-slate-100">
+                    {wizardAdvice}
+                  </p>
+                ) : null}
+              </div>
 
               <div className="mt-10 overflow-hidden rounded-3xl border border-white/50 bg-white/90 shadow-lg dark:border-slate-800/70 dark:bg-slate-900/70">
                 <table className="min-w-full divide-y divide-emerald-100 text-sm dark:divide-slate-800">

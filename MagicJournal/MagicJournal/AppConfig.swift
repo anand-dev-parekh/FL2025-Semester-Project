@@ -14,7 +14,7 @@ enum AppConfig {
     }
 
     static var backendBaseURL: URL {
-        if isPreview { return URL(string: "http://127.0.0.1:5000")! }
+        if isPreview { return URL(string: "http://127.0.0.1:8080")! }
         let rawValue = configString(for: "BACKEND_BASE_URL")
         guard let url = URL(string: rawValue) else {
             fatalError("BACKEND_BASE_URL in Info.plist must be a valid URL string.")

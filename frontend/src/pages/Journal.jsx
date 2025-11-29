@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthNavbar from "../components/AuthNavbar";
 import { http } from "../api/http";
 import { listJournalEntries, saveJournalEntry } from "../api/journal";
+import { requestWiseAdvice } from "../api/ai";
+import wizardImg from "../assets/wizard_2d.jpg";
 
 const COMPLETION_OPTIONS = [
   {
@@ -87,6 +89,15 @@ export default function Journal() {
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [wizardAdvice, setWizardAdvice] = useState("");
+  const [wizardError, setWizardError] = useState("");
+  const [wizardLoading, setWizardLoading] = useState(false);
+  const [wizardContext, setWizardContext] = useState(null);
+
+  const selectedGoal = useMemo(
+    () => goals.find((goal) => goal.id === selectedGoalId) || null,
+    [goals, selectedGoalId],
+  );
 
   const refreshGoals = useCallback(async (opts = { dispatch: false }) => {
     setGoalsLoading(true);
@@ -190,6 +201,58 @@ export default function Journal() {
     };
   }, [selectedCompletionIndex]);
 
+  const recentEntries = useMemo(() => {
+    const sorted = [...entries].sort((a, b) => {
+      if (a.entry_date === b.entry_date) {
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      }
+      return (b.entry_date || "").localeCompare(a.entry_date || "");
+    });
+    return sorted.slice(0, 10);
+  }, [entries]);
+
+  const askJournalWizard = useCallback(async () => {
+    if (!selectedGoal) {
+      setWizardError("Choose a habit so the Wise Wizard knows what to reflect on.");
+      return;
+    }
+    setWizardLoading(true);
+    setWizardAdvice("");
+    setWizardError("");
+    try {
+      const latestEntry = recentEntries[0];
+      const promptParts = [
+        `Habit: ${formatHabitLabel(selectedGoal) || "Unnamed habit"}.`,
+        `Today's completion level: ${formatCompletion(completionLevel)}.`,
+        reflection?.trim()
+          ? `User reflection: """${reflection.trim().slice(0, 400)}""".`
+          : "User has not written a reflection yet.",
+        latestEntry
+          ? `Most recent saved entry (${latestEntry.entry_date}) xp ${latestEntry.xp_delta} and reflection: """${(latestEntry.reflection || "").slice(0, 200)}""".`
+          : null,
+        "Offer 2-3 sentences of encouraging feedback or journaling prompts tailored to this habit.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const systemPrompt =
+        "You are the Wise Wizard journaling companion. Be gentle, specific, and invite deeper reflection. Avoid medical claims.";
+      const response = await requestWiseAdvice({
+        prompt: promptParts,
+        systemPrompt,
+        context: wizardContext || undefined,
+      });
+      setWizardAdvice(response?.response?.trim() || "The wizard had no guidance this time.");
+      if (response?.context) {
+        setWizardContext(response.context);
+      }
+    } catch (err) {
+      console.error("Journal wizard request failed", err);
+      setWizardError("The Wise Wizard is busy writing scrolls. Try again soon.");
+    } finally {
+      setWizardLoading(false);
+    }
+  }, [selectedGoal, completionLevel, reflection, recentEntries, wizardContext]);
+
   const handleSave = async (event) => {
     event.preventDefault();
     if (!selectedGoalId) {
@@ -231,14 +294,6 @@ export default function Journal() {
       setSaving(false);
     }
   };
-
-  const formattedEntries = useMemo(() => {
-    const sorted = [...entries].sort((a, b) => {
-      if (a.entry_date === b.entry_date) return (b.created_at || "").localeCompare(a.created_at || "");
-      return (b.entry_date || "").localeCompare(a.entry_date || "");
-    });
-    return sorted.slice(0, 10);
-  }, [entries]);
 
   return (
     <>
@@ -297,6 +352,47 @@ export default function Journal() {
                 className={textareaBase}
               />
             </label>
+
+            <div className="rounded-3xl border border-indigo-200/70 bg-indigo-50/70 p-5 shadow-sm dark:border-indigo-500/40 dark:bg-indigo-900/30">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 overflow-hidden rounded-2xl border border-indigo-500/40 bg-indigo-600/60 shadow-md">
+                    <img
+                      src={wizardImg}
+                      alt="Wise Wizard illustration"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                      Stuck on what to write?
+                    </p>
+                    <p className="text-sm text-indigo-700 dark:text-indigo-200/80">
+                      Ask the Wise Wizard for a journaling prompt or a gentle nudge.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={askJournalWizard}
+                  disabled={wizardLoading || !selectedGoal}
+                  className="rounded-full border border-indigo-300 bg-white/80 px-4 py-2 text-sm font-medium text-indigo-800 shadow-sm transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-100 dark:hover:bg-indigo-900/40"
+                >
+                  {wizardLoading ? "Summoning..." : "Ask the Wise Wizard"}
+                </button>
+              </div>
+              {wizardError ? (
+                <p className="mt-4 rounded-2xl border border-rose-200/70 bg-rose-50/70 px-3 py-2 text-sm text-rose-800 dark:border-rose-500/60 dark:bg-rose-900/40 dark:text-rose-100">
+                  {wizardError}
+                </p>
+              ) : null}
+              {wizardAdvice ? (
+                <p className="mt-4 rounded-2xl bg-white/90 p-4 text-sm leading-relaxed text-slate-800 shadow-inner dark:bg-slate-900/60 dark:text-slate-100">
+                  {wizardAdvice}
+                </p>
+              ) : null}
+            </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -371,13 +467,13 @@ export default function Journal() {
               </div>
             ) : entriesError ? (
               <p className="mt-6 text-sm text-rose-600 dark:text-rose-400">{entriesError}</p>
-            ) : !formattedEntries.length ? (
+            ) : !recentEntries.length ? (
               <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
                 No journal entries yet. Start by saving a reflection above.
               </p>
             ) : (
               <ul className="mt-6 space-y-4">
-                {formattedEntries.map((entry) => (
+                {recentEntries.map((entry) => (
                   <li
                     key={entry.id}
                     className="rounded-2xl border border-slate-200/60 bg-white/80 p-4 shadow-sm transition hover:border-emerald-300/70 hover:shadow-md dark:border-slate-800/60 dark:bg-slate-900/60"
