@@ -73,14 +73,20 @@ python3 src/app.py
 kind create cluster --config cluster.yaml
 
 docker build -t magic-backend:release-v1 -f backend/Dockerfile.release backend
+
 docker build -t magic-frontend:release-v1 -f frontend/Dockerfile.release frontend
 
 kind load docker-image magic-backend:release-v1
+
 kind load docker-image magic-frontend:release-v1
 
 kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/deploy-ingress-nginx.yaml
 
 kubectl apply -f k8s/deployment.yaml
+
+kubectl exec deploy/magic-journal-backend -c ollama -- ollama pull phi3:mini
+
+kubectl exec deploy/magic-journal-backend -c ollama -- ollama ps
 
 
 THEN we do the seeding
@@ -90,4 +96,5 @@ kubectl port-forward service/magic-journal-db 5433:5432
 export PGPASSWORD="s"
 
 psql -h localhost -p 5433 -U anandparekh -d magic_journal -f database/create_schema.sql
+
 psql -h localhost -p 5433 -U anandparekh -d magic_journal -f database/seed_habits.sql
