@@ -2,14 +2,102 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import AuthNavbar from "../components/AuthNavbar";
 import { http } from "../api/http";
+import { listJournalEntries } from "../api/journal";
 
 const XP_PER_LEVEL = 100;
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+function toDateOnly(value) {
+  if (!value || typeof value !== "string") return null;
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function diffInDays(a, b) {
+  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((utcA - utcB) / MS_PER_DAY);
+}
+
+function computeStreakStats(entries = []) {
+  const activeDays = new Set();
+
+  for (const entry of entries) {
+    const key = entry?.entry_date || entry?.entryDate;
+    if (!key) continue;
+
+    const level = (entry?.completion_level || entry?.completionLevel || "").toLowerCase();
+    const xpDelta = Number(entry?.xp_delta ?? entry?.xpDelta ?? entry?.xp ?? 0);
+    const productive = level === "complete" || level === "partial" || xpDelta > 0;
+    if (!productive) continue;
+
+    const date = toDateOnly(key);
+    if (!date) continue;
+    activeDays.add(date.toISOString().slice(0, 10));
+  }
+
+  const datesDesc = Array.from(activeDays).sort(
+    (a, b) => (toDateOnly(b)?.getTime() ?? 0) - (toDateOnly(a)?.getTime() ?? 0),
+  );
+  if (!datesDesc.length) {
+    return { current: 0, longest: 0, lastEntry: null, activeDates: [] };
+  }
+
+  // Current streak counts back from most recent logged day.
+  let current = 0;
+  let previous = null;
+  for (const dateStr of datesDesc) {
+    const date = toDateOnly(dateStr);
+    if (!date) continue;
+    if (previous === null) {
+      current = 1;
+    } else if (diffInDays(previous, date) === 1) {
+      current += 1;
+    } else {
+      break;
+    }
+    previous = date;
+  }
+
+  // Longest streak across all logged days.
+  const datesAsc = [...datesDesc].reverse();
+  let longest = 0;
+  let run = 0;
+  previous = null;
+  for (const dateStr of datesAsc) {
+    const date = toDateOnly(dateStr);
+    if (!date) continue;
+    if (previous && diffInDays(date, previous) === 1) {
+      run += 1;
+    } else {
+      run = 1;
+    }
+    longest = Math.max(longest, run);
+    previous = date;
+  }
+
+  return {
+    current,
+    longest,
+    lastEntry: datesDesc[0] ?? null,
+    activeDates: datesDesc,
+  };
+}
+
+function formatPrettyDate(value) {
+  const date = toDateOnly(value);
+  if (!date) return "No entries yet";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [goals, setGoals] = useState([]);
   const [loadingXp, setLoadingXp] = useState(true);
   const [xpError, setXpError] = useState("");
+  const [journalEntries, setJournalEntries] = useState([]);
+  const [streakLoading, setStreakLoading] = useState(true);
+  const [streakError, setStreakError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +133,36 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function fetchStreakEntries() {
+      setStreakLoading(true);
+      setStreakError("");
+      try {
+        const response = await listJournalEntries({ limit: 400 });
+        if (cancelled) return;
+        const list = Array.isArray(response) ? response : [];
+        setJournalEntries(list);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Failed to load streak data", err);
+        setStreakError("We couldn't load your streak right now.");
+        setJournalEntries([]);
+      } finally {
+        if (!cancelled) {
+          setStreakLoading(false);
+        }
+      }
+    }
+
+    fetchStreakEntries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
     const handler = (event) => {
@@ -67,6 +185,22 @@ export default function Dashboard() {
       }, 0),
     [goals],
   );
+
+  const streakStats = useMemo(() => computeStreakStats(journalEntries), [journalEntries]);
+  const streakPreview = useMemo(() => {
+    const today = new Date();
+    const activeSet = new Set(streakStats.activeDates);
+
+    const lastSeven = Array.from({ length: 7 }).map((_, index) => {
+      const day = new Date(today);
+      day.setDate(today.getDate() - (6 - index));
+      const key = day.toISOString().slice(0, 10);
+      const label = day.toLocaleDateString(undefined, { weekday: "short" });
+      return { key, label, active: activeSet.has(key), dayIndex: day.getDay() };
+    });
+
+    return lastSeven.sort((a, b) => a.dayIndex - b.dayIndex); // Sunday (0) through Saturday (6)
+  }, [streakStats.activeDates]);
 
   const frequentHabits = useMemo(() => {
     const totals = new Map();
@@ -128,6 +262,81 @@ export default function Dashboard() {
             <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
               Use the habits page to track your goals and visit your profile to update your preferences.
             </p>
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <div className="rounded-3xl border border-emerald-200/60 bg-emerald-50/70 p-8 shadow-xl backdrop-blur-md transition-colors duration-500 dark:border-emerald-700/50 dark:bg-emerald-950/50">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-xl font-semibold text-emerald-800 dark:text-emerald-200">
+                Journal Streak
+              </h3>
+            </div>
+            <p className="mt-2 text-sm text-emerald-900/80 dark:text-emerald-200/80">
+              Calculated from your journal timestamps — keep logging daily to keep the chain alive.
+            </p>
+
+            {streakLoading ? (
+              <div className="mt-6 space-y-3">
+                <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-emerald-200/60 dark:bg-emerald-900/60" />
+                <div className="h-10 w-1/2 animate-pulse rounded-2xl bg-emerald-200/60 dark:bg-emerald-900/60" />
+                <div className="h-12 w-full animate-pulse rounded-2xl bg-emerald-200/60 dark:bg-emerald-900/60" />
+              </div>
+            ) : streakError ? (
+              <p className="mt-4 rounded-2xl border border-rose-200/70 bg-rose-50/70 p-4 text-sm text-rose-700 dark:border-rose-700/60 dark:bg-rose-900/40 dark:text-rose-100">
+                {streakError}
+              </p>
+            ) : (
+              <>
+                <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-emerald-200/70 bg-white/70 p-4 dark:border-emerald-700/60 dark:bg-emerald-900/50">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                      Current streak
+                    </p>
+                    <div className="mt-2 text-3xl font-bold text-emerald-900 dark:text-emerald-50">
+                      {streakStats.current} day{streakStats.current === 1 ? "" : "s"}
+                    </div>
+                    <p className="mt-1 text-xs text-emerald-900/70 dark:text-emerald-100/70">
+                      Last entry: {formatPrettyDate(streakStats.lastEntry)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200/70 bg-white/70 p-4 dark:border-emerald-700/60 dark:bg-emerald-900/50">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                      Best streak
+                    </p>
+                    <div className="mt-2 text-3xl font-bold text-emerald-900 dark:text-emerald-50">
+                      {streakStats.longest} day{streakStats.longest === 1 ? "" : "s"}
+                    </div>
+                    <p className="mt-1 text-xs text-emerald-900/70 dark:text-emerald-100/70">
+                      We track this locally from your journal history.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-emerald-200/70 bg-white/70 p-4 dark:border-emerald-700/60 dark:bg-emerald-900/50">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                    Past 7 days
+                  </p>
+                  <div className="mt-3 grid grid-cols-7 gap-2">
+                    {streakPreview.map((day) => (
+                      <div
+                        key={day.key}
+                        className={[
+                          "flex h-12 flex-col items-center justify-center rounded-xl border text-xs font-semibold transition",
+                          day.active
+                            ? "border-emerald-400 bg-emerald-200/70 text-emerald-900 shadow-sm dark:border-emerald-500/70 dark:bg-emerald-700/60 dark:text-emerald-50"
+                            : "border-emerald-100 bg-emerald-50/70 text-emerald-600 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+                        ].join(" ")}
+                        title={`${day.label} (${day.key})`}
+                      >
+                        <span className="text-[10px] uppercase tracking-wide">{day.label}</span>
+                        <span className="text-sm">{day.active ? "●" : "–"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
