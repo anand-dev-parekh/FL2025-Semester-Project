@@ -22,10 +22,11 @@ export default function AuthNavbar() {
   }, [logout, navigate]);
 
   const links = [
-    { to: "/app", label: "Dashboard" },
+    { to: "/app", label: "Dashboard", end: true },
     { to: "/health", label: "Health" },
     { to: "/habits", label: "Habits" },
     { to: "/journal", label: "Journal" },
+    { to: "/insights", label: "Insights" },
     { to: "/friends", label: "Friends" },
     { to: "/profile", label: "Profile" },
   ];
@@ -42,10 +43,11 @@ export default function AuthNavbar() {
 
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-4">
-            {links.map(({ to, label, icon: Icon }) => (
+            {links.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
                 to={to}
+                end={Boolean(end)}
                 className={({ isActive }) =>
                   [
                     navLinkBase,

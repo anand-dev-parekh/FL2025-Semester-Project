@@ -375,7 +375,7 @@ export default function Dashboard() {
                   Last {DAYS_WINDOW} Days
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  XP and completion ratios from your quantitative logs.
+                  XP and completion ratios from your logs.
                 </p>
               </div>
               <span className="rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-900/50 dark:text-emerald-200">
