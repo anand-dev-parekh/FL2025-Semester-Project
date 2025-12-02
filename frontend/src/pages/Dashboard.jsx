@@ -4,6 +4,52 @@ import AuthNavbar from "../components/AuthNavbar";
 import { http } from "../api/http";
 import { listJournalEntries } from "../api/journal";
 
+function WeeklySparkline({ data = [], maxValue = 10 }) {
+  if (!data.length) return null;
+  const width = 220;
+  const height = 70;
+  const padding = 8;
+  const usableHeight = height - padding * 2;
+  const step = data.length > 1 ? (width - padding * 2) / (data.length - 1) : 0;
+  const safeMax = Math.max(maxValue, 1);
+
+  const points = data.map((day, idx) => {
+    const x = padding + idx * step;
+    const ratio = Math.max(0, Math.min(1, day.value / safeMax));
+    const y = height - padding - ratio * usableHeight;
+    return `${x},${y}`;
+  });
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img">
+      <polyline
+        fill="none"
+        stroke="#10b981"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points.join(" ")}
+      />
+      {data.map((day, idx) => {
+        const x = padding + idx * step;
+        const ratio = Math.max(0, Math.min(1, day.value / safeMax));
+        const y = height - padding - ratio * usableHeight;
+        return (
+          <circle
+            key={day.iso || idx}
+            cx={x}
+            cy={y}
+            r="4"
+            fill="#10b981"
+            stroke="#ecfdf3"
+            strokeWidth="2"
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 const XP_PER_LEVEL = 100;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MOTIVATION_API = "https://api.quotable.io/random?tags=inspirational|success|life";
@@ -89,6 +135,66 @@ function computeStreakStats(entries = []) {
     longest,
     lastEntry: datesDesc[0] ?? null,
     activeDates: datesDesc,
+  };
+}
+
+function computeWeeklyFocus(entries = []) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(today.getDate() - 6); // last 7 days inclusive
+
+  const days = Array.from({ length: 7 }).map((_, idx) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + idx);
+    return {
+      iso: d.toISOString().slice(0, 10),
+      label: d.toLocaleDateString(undefined, { weekday: "short" }),
+    };
+  });
+
+  const habits = new Map(); // habitId -> {name, totalXp, series}
+
+  for (const entry of entries) {
+    const iso = (entry?.entry_date || entry?.entryDate || "").slice(0, 10);
+    if (!iso) continue;
+    if (iso < days[0].iso || iso > days[6].iso) continue; // outside week window
+
+    const habitId = entry?.habit_id ?? entry?.habitId;
+    if (!habitId) continue;
+    const habitName = entry?.habit_name || entry?.habitName || entry?.habit?.name || "Habit";
+    const xp = Number(entry?.xp_delta ?? entry?.xpDelta ?? entry?.xp ?? 0);
+    if (!Number.isFinite(xp)) continue;
+
+    const targetIndex = days.findIndex((d) => d.iso === iso);
+    if (targetIndex === -1) continue;
+
+    const current = habits.get(habitId) || {
+      name: habitName,
+      totalXp: 0,
+      series: Array.from({ length: 7 }).map(() => 0),
+    };
+
+    current.name = current.name || habitName;
+    current.totalXp += xp;
+    current.series[targetIndex] += xp;
+    habits.set(habitId, current);
+  }
+
+  const ranked = Array.from(habits.values())
+    .filter((h) => h.totalXp > 0)
+    .sort((a, b) => b.totalXp - a.totalXp || a.name.localeCompare(b.name));
+
+  const top = ranked[0];
+  if (!top) {
+    return null;
+  }
+
+  return {
+    name: top.name,
+    totalXp: top.totalXp,
+    series: days.map((d, idx) => ({ ...d, value: top.series[idx] })),
+    maxValue: Math.max(10, ...top.series),
   };
 }
 
@@ -216,6 +322,21 @@ export default function Dashboard() {
     const handler = (event) => {
       const payload = event?.detail;
       if (!Array.isArray(payload)) return;
+      setJournalEntries(payload);
+      setStreakError("");
+      setStreakLoading(false);
+    };
+
+    window.addEventListener("journal:entriesChange", handler);
+    return () => window.removeEventListener("journal:entriesChange", handler);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handler = (event) => {
+      const payload = event?.detail;
+      if (!Array.isArray(payload)) return;
       setGoals(payload);
       setXpError("");
       setLoadingXp(false);
@@ -249,6 +370,8 @@ export default function Dashboard() {
 
     return lastSeven.sort((a, b) => a.dayIndex - b.dayIndex); // Sunday (0) through Saturday (6)
   }, [streakStats.activeDates]);
+
+  const weeklyFocus = useMemo(() => computeWeeklyFocus(journalEntries), [journalEntries]);
 
   const frequentHabits = useMemo(() => {
     const totals = new Map();
@@ -434,6 +557,66 @@ export default function Dashboard() {
                   </div>
                 </div>
               </>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <div className="rounded-3xl border border-white/50 bg-white/80 p-6 shadow-lg backdrop-blur-md transition-colors duration-500 dark:border-slate-800/70 dark:bg-slate-900/70">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100">
+                  Weekly Focus
+                </h4>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Your top habit by XP earned in the last 7 days.
+                </p>
+              </div>
+              <span className="rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-900/50 dark:text-emerald-200">
+                Auto-calculated
+              </span>
+            </div>
+
+            {!weeklyFocus ? (
+              <p className="mt-4 rounded-2xl border border-dashed border-emerald-200/70 bg-emerald-50/60 p-4 text-sm text-slate-600 dark:border-emerald-700/50 dark:bg-emerald-900/40 dark:text-slate-300">
+                Log journal entries this week to see your focus habit.
+              </p>
+            ) : (
+              <div className="mt-6 grid gap-6 lg:grid-cols-[2fr,1fr]">
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4 dark:border-emerald-700/60 dark:bg-emerald-950/40">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                        This week’s top habit
+                      </p>
+                      <p className="mt-1 text-xl font-bold text-emerald-900 dark:text-emerald-50">
+                        {weeklyFocus.name}
+                      </p>
+                      <p className="text-sm text-emerald-800/80 dark:text-emerald-100/80">
+                        +{weeklyFocus.totalXp} XP in 7 days
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <WeeklySparkline data={weeklyFocus.series} maxValue={weeklyFocus.maxValue} />
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-emerald-200/70 bg-white/70 p-4 text-sm text-slate-700 shadow-sm dark:border-emerald-700/60 dark:bg-emerald-900/50 dark:text-emerald-100">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                    Daily XP
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {weeklyFocus.series.map((day) => (
+                      <li key={day.iso} className="flex justify-between">
+                        <span className="text-emerald-800 dark:text-emerald-100">{day.label}</span>
+                        <span className="font-semibold text-emerald-900 dark:text-emerald-50">
+                          {day.value} XP
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             )}
           </div>
         </section>

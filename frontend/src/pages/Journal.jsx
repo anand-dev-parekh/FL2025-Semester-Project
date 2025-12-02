@@ -73,6 +73,12 @@ function formatCompletion(value) {
   return option ? option.label : "Unknown";
 }
 
+function broadcastJournalEntries(entries) {
+  if (typeof window === "undefined") return;
+  const detail = Array.isArray(entries) ? entries.map((e) => ({ ...e })) : [];
+  window.dispatchEvent(new CustomEvent("journal:entriesChange", { detail }));
+}
+
 export default function Journal() {
   const [goals, setGoals] = useState([]);
   const [goalsLoading, setGoalsLoading] = useState(true);
@@ -142,11 +148,14 @@ export default function Journal() {
           from: thirtyDaysAgoIso(),
           to: todayIso(),
         });
-        setEntries(Array.isArray(response) ? response : []);
+        const incoming = Array.isArray(response) ? response : [];
+        setEntries(incoming);
+        broadcastJournalEntries(incoming);
       } catch (err) {
         console.error(err);
         setEntriesError("Unable to load journal entries for this habit.");
         setEntries([]);
+        broadcastJournalEntries([]);
       } finally {
         setEntriesLoading(false);
       }
@@ -279,8 +288,12 @@ export default function Journal() {
       if (entry) {
         setEntries((prev) => {
           const others = prev.filter((item) => item.id !== entry.id);
-          return [...others, entry].sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
+          const updated = [...others, entry].sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
+          broadcastJournalEntries(updated);
+          return updated;
         });
+      } else {
+        broadcastJournalEntries(entries);
       }
 
       await refreshGoals({ dispatch: true });
