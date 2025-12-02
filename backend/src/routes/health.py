@@ -3,15 +3,15 @@ from flask import Blueprint, jsonify, request
 
 from tools.auth_helper import session_user
 from tools.database import db_pool
-from tools.healthkit_goal_helper import calculate_health_xp, HEALTH_METRIC_KEYS, metric_unit
-from tools.healthkit_goal_helper import HEALTHKIT_HABIT_METRICS
+from tools.healthkit_goal_helper import (
+    HEALTHKIT_DEFAULT_TARGETS,
+    HEALTHKIT_HABIT_METRICS,
+    HEALTH_METRIC_KEYS,
+    calculate_health_xp,
+    metric_unit,
+)
 
 health_blueprint = Blueprint("health", __name__, url_prefix="/api/health")
-HEALTHKIT_DEFAULT_TARGETS = {
-    "steps": 8000,
-    "exercise_minutes": 30,
-    "sleep_minutes": 480,
-}
 
 
 def _parse_records(payload):
@@ -133,19 +133,37 @@ def _sync_healthkit_goals(conn, user_id, records):
                         SET reflection = %s,
                             xp_delta = %s,
                             completion_level = %s,
+                            numeric_value = %s,
+                            numeric_unit = %s,
                             updated_at = now()
                         WHERE id = %s
                         """,
-                        (reflection, xp_delta, completion_level, entry_id),
+                        (
+                            reflection,
+                            xp_delta,
+                            completion_level,
+                            actual_value,
+                            goal["target_unit"] or metric_unit(metric_key),
+                            entry_id,
+                        ),
                     )
                 else:
                     cur.execute(
                         """
-                        INSERT INTO journal_entries (user_id, goal_id, entry_date, reflection, xp_delta, completion_level)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO journal_entries (user_id, goal_id, entry_date, reflection, xp_delta, completion_level, numeric_value, numeric_unit)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
-                        (user_id, goal["id"], metric_date, auto_note, xp_delta, completion_level),
+                        (
+                            user_id,
+                            goal["id"],
+                            metric_date,
+                            auto_note,
+                            xp_delta,
+                            completion_level,
+                            actual_value,
+                            goal["target_unit"] or metric_unit(metric_key),
+                        ),
                     )
                     entry_id = cur.fetchone()[0]
 

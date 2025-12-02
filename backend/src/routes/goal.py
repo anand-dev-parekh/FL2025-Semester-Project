@@ -1,6 +1,7 @@
 from flask import request, jsonify, Blueprint
 from tools.auth_helper import ensure_auth
 from tools.database import db_pool
+from tools.habit_meta import default_target_for_habit, default_unit_for_habit, habit_meta
 from tools.healthkit_goal_helper import HEALTH_METRIC_KEYS, metric_for_habit_name, metric_unit
 
 goal_blueprint = Blueprint("goals", __name__, url_prefix="/api/goals")
@@ -36,26 +37,33 @@ def get_goals():
             
             rows = cur.fetchall()
 
-        goals = [
-            {
-                "id": r[0],
-                "goal_text": r[1],
-                "xp": r[2],
-                "completed": r[3],
-                "created_at": r[4].isoformat() if r[4] else None,
-                "uses_healthkit": r[5],
-                "health_metric": r[6],
-                "target_value": r[7],
-                "target_unit": r[8],
-                "habit_id": r[9],
-                "habit": {
-                    "id": r[9],
-                    "name": r[10],
-                    "description": r[11],
-                },
-            }
-            for r in rows
-        ]
+        goals = []
+        for r in rows:
+            meta = habit_meta(r[10])
+            if not meta:
+                continue  # skip non-quantifiable habits
+            goals.append(
+                {
+                    "id": r[0],
+                    "goal_text": r[1],
+                    "xp": r[2],
+                    "completed": r[3],
+                    "created_at": r[4].isoformat() if r[4] else None,
+                    "uses_healthkit": r[5],
+                    "health_metric": r[6],
+                    "target_value": r[7],
+                    "target_unit": r[8],
+                    "habit_id": r[9],
+                    "habit": {
+                        "id": r[9],
+                        "name": meta.get("name") or r[10],
+                        "description": r[11] or meta.get("description"),
+                        "unit": meta.get("unit"),
+                        "default_target": meta.get("default_target"),
+                        "health_metric": meta.get("health_metric"),
+                    },
+                }
+            )
         return jsonify(goals)
     finally:
         db_pool.putconn(conn)
@@ -70,8 +78,8 @@ def create_goal():
     data = request.get_json(silent=True) or {}
     habit_id = data.get("habit_id")
     goal_text = (data.get("goal_text") or "").strip()
-    xp = data.get("xp", 0)
-    completed = data.get("completed", False)
+    xp = 0  # XP always starts at zero; it is earned through quantitative tracking.
+    completed = False
     uses_healthkit = bool(data.get("uses_healthkit", False))
     target_value = data.get("target_value")
     target_unit = (data.get("target_unit") or "").strip() or None
@@ -82,19 +90,14 @@ def create_goal():
         return jsonify({"error": "habit_id (int) is required"}), 400
     if not goal_text:
         return jsonify({"error": "goal_text is required"}), 400
-    try:
-        xp = int(xp)
-    except (TypeError, ValueError):
-        return jsonify({"error": "xp must be an integer"}), 400
-    completed = bool(completed)
 
     if target_value is not None:
         try:
             target_value = int(target_value)
         except (TypeError, ValueError):
             return jsonify({"error": "target_value must be an integer"}), 400
-        if target_value < 0:
-            return jsonify({"error": "target_value must be zero or greater"}), 400
+        if target_value <= 0:
+            return jsonify({"error": "target_value must be greater than zero"}), 400
 
     conn = db_pool.getconn()
     try:
@@ -107,21 +110,29 @@ def create_goal():
                     return jsonify({"error": "Habit not found"}), 404
 
                 habit_name = hrow[1]
+                meta = habit_meta(habit_name)
+                if not meta:
+                    return jsonify({"error": "This habit is not supported for quantitative tracking."}), 400
+
+                if target_value is None:
+                    target_value = default_target_for_habit(habit_name)
+                if target_value is None or target_value <= 0:
+                    return jsonify({"error": "target_value is required and must be greater than zero"}), 400
+                if not target_unit:
+                    target_unit = default_unit_for_habit(habit_name)
+
                 default_metric = metric_for_habit_name(habit_name)
                 if uses_healthkit:
-                    # Fall back to habit's default metric if caller didn't specify one.
+                    if not default_metric:
+                        return jsonify({"error": "This habit cannot sync with HealthKit"}), 400
                     if not health_metric:
                         health_metric = default_metric
                     if health_metric not in HEALTH_METRIC_KEYS:
                         return jsonify({"error": "health_metric is invalid"}), 400
-                    if target_value is None:
-                        return jsonify({"error": "target_value is required for HealthKit goals"}), 400
-                    if not target_unit:
-                        target_unit = metric_unit(health_metric)
+                    target_unit = target_unit or metric_unit(health_metric)
                 else:
                     health_metric = None
-                    target_value = target_value if target_value is not None else None
-                    target_unit = target_unit if target_unit is not None else None
+                    uses_healthkit = False
 
                 # insert goal and return joined record
                 cur.execute("""
@@ -139,6 +150,7 @@ def create_goal():
                 """, (user["id"], habit_id, goal_text, xp, completed, uses_healthkit, health_metric, target_value, target_unit))
                 r = cur.fetchone()
 
+        meta = habit_meta(r[10])
         goal = {
             "id": r[0],
             "goal_text": r[1],
@@ -150,7 +162,14 @@ def create_goal():
             "target_value": r[7],
             "target_unit": r[8],
             "habit_id": r[9],
-            "habit": {"id": r[9], "name": r[10], "description": r[11]},
+            "habit": {
+                "id": r[9],
+                "name": meta.get("name") if meta else r[10],
+                "description": r[11] or (meta.get("description") if meta else None),
+                "unit": meta.get("unit") if meta else None,
+                "default_target": meta.get("default_target") if meta else None,
+                "health_metric": meta.get("health_metric") if meta else None,
+            },
         }
         return jsonify(goal), 201
     finally:
@@ -253,25 +272,34 @@ def update_goal(goal_id):
                 else:
                     target_habit_name = current_habit_name
 
+                meta = habit_meta(target_habit_name)
+                if not meta:
+                    return jsonify({"error": "This habit is not supported for quantitative tracking."}), 400
+
                 default_metric = metric_for_habit_name(target_habit_name)
-                uses_healthkit = updates.get("uses_healthkit", current_uses_healthkit)
+                uses_healthkit = updates.get("uses_healthkit", current_uses_healthkit and bool(default_metric))
                 target_metric = updates.get("health_metric", current_metric)
                 target_value = updates.get("target_value", current_target_value)
-                target_unit = updates.get("target_unit", current_target_unit)
+                target_unit = updates.get("target_unit", current_target_unit or default_unit_for_habit(target_habit_name))
 
                 if uses_healthkit:
+                    if not default_metric:
+                        return jsonify({"error": "This habit cannot sync with HealthKit"}), 400
                     if not target_metric:
                         target_metric = default_metric
                     if target_metric not in HEALTH_METRIC_KEYS:
                         return jsonify({"error": "health_metric is invalid"}), 400
-                    if target_value is None:
-                        return jsonify({"error": "target_value is required for HealthKit goals"}), 400
-                    if not target_unit:
-                        target_unit = metric_unit(target_metric)
+                    target_unit = target_unit or metric_unit(target_metric)
                 else:
                     target_metric = None
-                    target_value = None
-                    target_unit = target_unit if target_unit is not None else None
+                    uses_healthkit = False
+
+                if target_value is None:
+                    target_value = default_target_for_habit(target_habit_name)
+                if target_value is None or target_value <= 0:
+                    return jsonify({"error": "target_value is required and must be greater than zero"}), 400
+                if not target_unit:
+                    target_unit = default_unit_for_habit(target_habit_name)
 
                 updates["uses_healthkit"] = uses_healthkit
                 updates["health_metric"] = target_metric
@@ -319,6 +347,7 @@ def update_goal(goal_id):
                 )
                 h = cur.fetchone()
 
+        meta = habit_meta(h[1]) if h else None
         goal = {
             "id": goal_id_out,
             "goal_text": goal_text_out,
@@ -332,8 +361,11 @@ def update_goal(goal_id):
             "target_unit": target_unit_out,
             "habit": {
                 "id": h[0],
-                "name": h[1],
-                "description": h[2],
+                "name": meta.get("name") if meta else h[1],
+                "description": h[2] or (meta.get("description") if meta else None),
+                "unit": meta.get("unit") if meta else None,
+                "default_target": meta.get("default_target") if meta else None,
+                "health_metric": meta.get("health_metric") if meta else None,
             } if h else None,
         }
         return jsonify(goal)

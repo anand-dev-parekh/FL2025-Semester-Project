@@ -99,6 +99,7 @@ export default function Onboarding() {
   const [habitsError, setHabitsError] = useState("");
   const [selectedHabitId, setSelectedHabitId] = useState("");
   const [goalDraft, setGoalDraft] = useState("");
+  const [goalTarget, setGoalTarget] = useState("");
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalError, setGoalError] = useState("");
   const [goals, setGoals] = useState([]);
@@ -315,6 +316,11 @@ export default function Onboarding() {
       setGoalError("Describe what success looks like for this habit.");
       return;
     }
+    const numericTarget = Number(goalTarget);
+    if (!Number.isFinite(numericTarget) || numericTarget <= 0) {
+      setGoalError("Add a numeric target greater than zero for this habit.");
+      return;
+    }
 
     setGoalSaving(true);
     setGoalError("");
@@ -324,11 +330,14 @@ export default function Onboarding() {
         body: {
           habit_id: Number(selectedHabitId),
           goal_text: trimmed,
+          target_value: Math.round(numericTarget),
+          target_unit: selectedHabit?.unit || null,
         },
       });
       const newGoal = created?.habit ? created : created?.goal ?? created;
       setGoals((prev) => [newGoal, ...prev]);
       setGoalDraft("");
+      setGoalTarget(selectedHabit?.default_target ?? goalTarget);
     } catch (err) {
       console.error(err);
       setGoalError("We couldn’t save that goal. Please try again.");
@@ -387,6 +396,13 @@ export default function Onboarding() {
     () => habits.find((h) => String(h.id) === String(selectedHabitId)),
     [habits, selectedHabitId]
   );
+  useEffect(() => {
+    if (selectedHabit) {
+      setGoalTarget(selectedHabit.default_target ?? "");
+    } else {
+      setGoalTarget("");
+    }
+  }, [selectedHabit]);
   const orderedGoals = useMemo(() => {
     const list = goals.slice();
     list.sort((a, b) => {
@@ -645,8 +661,8 @@ export default function Onboarding() {
                       <option key={habit.id} value={habit.id}>
                         {habit.name}
                       </option>
-                    ))}
-                  </select>
+                  ))}
+                </select>
                   {selectedHabit?.description && (
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       {selectedHabit.description}
@@ -655,18 +671,33 @@ export default function Onboarding() {
                 </label>
 
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Describe your goal
-                  <textarea
-                    className={`${inputClasses} min-h-[140px] resize-none`}
-                    value={goalDraft}
-                    onChange={(event) => {
-                      setGoalDraft(event.target.value);
-                      if (goalError) setGoalError("");
-                    }}
-                    placeholder="Example: Complete a 20-minute strength workout three times a week."
+                  Daily target ({selectedHabit?.unit || "units"})
+                  <input
+                    className={inputClasses}
+                    type="number"
+                    min="0"
+                    value={goalTarget}
+                    onChange={(event) => setGoalTarget(event.target.value)}
+                    placeholder={selectedHabit?.default_target ? String(selectedHabit.default_target) : "Add a number"}
                   />
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Quantitative goals earn XP linearly up to 10 when you hit this number.
+                  </p>
                 </label>
               </div>
+
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Describe your goal
+                <textarea
+                  className={`${inputClasses} min-h-[140px] resize-none`}
+                  value={goalDraft}
+                  onChange={(event) => {
+                    setGoalDraft(event.target.value);
+                    if (goalError) setGoalError("");
+                  }}
+                  placeholder="Example: Complete a 20-minute strength workout three times a week."
+                />
+              </label>
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
                 <button
@@ -717,6 +748,10 @@ export default function Onboarding() {
                       {goal.uses_healthkit ? (
                         <p className="text-xs text-emerald-800 dark:text-emerald-200">
                           HealthKit target: {formatHealthTarget(goal)}
+                        </p>
+                      ) : goal.target_value ? (
+                        <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                          Target: {goal.target_value} {goal.target_unit || goal.habit?.unit || "units"}
                         </p>
                       ) : null}
                     </div>
