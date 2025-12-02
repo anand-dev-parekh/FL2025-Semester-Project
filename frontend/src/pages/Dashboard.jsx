@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import AuthNavbar from "../components/AuthNavbar";
 import { http } from "../api/http";
@@ -198,6 +198,62 @@ function computeWeeklyFocus(entries = []) {
   };
 }
 
+function celebrate({ message }) {
+  if (typeof document === "undefined") return;
+  const root = document.createElement("div");
+  root.style.position = "fixed";
+  root.style.inset = "0";
+  root.style.pointerEvents = "none";
+  root.style.zIndex = "9999";
+  root.style.overflow = "hidden";
+
+  const badge = document.createElement("div");
+  badge.textContent = message;
+  badge.style.position = "absolute";
+  badge.style.left = "50%";
+  badge.style.top = "20%";
+  badge.style.transform = "translateX(-50%)";
+  badge.style.padding = "12px 18px";
+  badge.style.borderRadius = "999px";
+  badge.style.background = "rgba(16, 185, 129, 0.92)";
+  badge.style.color = "#ecfdf3";
+  badge.style.fontWeight = "700";
+  badge.style.boxShadow = "0 12px 35px rgba(16, 185, 129, 0.35)";
+  badge.style.backdropFilter = "blur(6px)";
+  root.appendChild(badge);
+
+  const colors = ["#10b981", "#34d399", "#f97316", "#22c55e", "#a7f3d0"];
+  const count = 60;
+  for (let i = 0; i < count; i += 1) {
+    const dot = document.createElement("span");
+    const size = Math.max(6, Math.random() * 10);
+    dot.style.position = "absolute";
+    dot.style.left = "50%";
+    dot.style.top = "20%";
+    dot.style.width = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.borderRadius = "50%";
+    dot.style.background = colors[i % colors.length];
+    dot.style.opacity = "0.9";
+    const angle = Math.random() * Math.PI * 2;
+    const velocity = 12 + Math.random() * 14;
+    const dx = Math.cos(angle) * velocity;
+    const dy = Math.sin(angle) * velocity;
+    const duration = 900 + Math.random() * 400;
+    dot.animate(
+      [
+        { transform: "translate(-50%, -50%) scale(1)", opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.4)`, opacity: 0 },
+      ],
+      { duration, easing: "ease-out", fill: "forwards" },
+    );
+    root.appendChild(dot);
+  }
+
+  document.body.appendChild(root);
+  setTimeout(() => root.remove(), 1500);
+}
+
 function formatPrettyDate(value) {
   const date = toDateOnly(value);
   if (!date) return "No entries yet";
@@ -214,6 +270,9 @@ export default function Dashboard() {
   const [journalEntries, setJournalEntries] = useState([]);
   const [streakLoading, setStreakLoading] = useState(true);
   const [streakError, setStreakError] = useState("");
+  const prevStreakRef = useRef(null);
+  const prevGoalsRef = useRef([]);
+  const prevLevelRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -337,6 +396,21 @@ export default function Dashboard() {
     const handler = (event) => {
       const payload = event?.detail;
       if (!Array.isArray(payload)) return;
+      setJournalEntries(payload);
+      setStreakError("");
+      setStreakLoading(false);
+    };
+
+    window.addEventListener("journal:entriesChange", handler);
+    return () => window.removeEventListener("journal:entriesChange", handler);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handler = (event) => {
+      const payload = event?.detail;
+      if (!Array.isArray(payload)) return;
       setGoals(payload);
       setXpError("");
       setLoadingXp(false);
@@ -415,6 +489,36 @@ export default function Dashboard() {
   const xpIntoLevel = totalXp % XP_PER_LEVEL;
   const xpToNextLevel = XP_PER_LEVEL - xpIntoLevel || XP_PER_LEVEL;
   const progressPercent = Math.min(100, (xpIntoLevel / XP_PER_LEVEL) * 100);
+
+  useEffect(() => {
+    if (streakLoading || streakError) return;
+    const previous = prevStreakRef.current;
+    if (previous !== null && streakStats.current > previous) {
+      celebrate({ message: "Streak up! 🔥" });
+    }
+    prevStreakRef.current = streakStats.current;
+  }, [streakLoading, streakError, streakStats.current]);
+
+  useEffect(() => {
+    const prevMap = new Map((prevGoalsRef.current || []).map((g) => [g.id, !!g.completed]));
+    const firstRun = prevGoalsRef.current.length === 0;
+    const newlyCompleted = goals.filter(
+      (g) => g && g.id !== undefined && g.id !== null && g.completed && !prevMap.get(g.id),
+    );
+    if (!firstRun && newlyCompleted.length) {
+      celebrate({ message: "Goal completed! 🎉" });
+    }
+    prevGoalsRef.current = goals.map((g) => ({ id: g.id, completed: !!g.completed }));
+  }, [goals]);
+
+  useEffect(() => {
+    if (loadingXp || xpError) return;
+    const prev = prevLevelRef.current;
+    if (prev !== null && level > prev) {
+      celebrate({ message: `Level up! Level ${level} 🏆` });
+    }
+    prevLevelRef.current = level;
+  }, [level, loadingXp, xpError]);
 
   return (
     <>
