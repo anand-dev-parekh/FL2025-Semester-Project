@@ -6,6 +6,14 @@ import { listJournalEntries } from "../api/journal";
 
 const XP_PER_LEVEL = 100;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const MOTIVATION_API = "https://api.quotable.io/random?tags=inspirational|success|life";
+const FALLBACK_QUOTES = [
+  { content: "Small steps add up. Keep going.", author: "Unknown" },
+  { content: "Momentum beats motivation. Start, then adjust.", author: "Unknown" },
+  { content: "Discipline is remembering what you want.", author: "David Campbell" },
+  { content: "Action is the antidote to anxiety.", author: "Unknown" },
+  { content: "You do not rise to the level of your goals. You fall to the level of your systems.", author: "James Clear" },
+];
 
 function toDateOnly(value) {
   if (!value || typeof value !== "string") return null;
@@ -95,6 +103,8 @@ export default function Dashboard() {
   const [goals, setGoals] = useState([]);
   const [loadingXp, setLoadingXp] = useState(true);
   const [xpError, setXpError] = useState("");
+  const [quote, setQuote] = useState({ content: "", author: "" });
+  const [quoteLoading, setQuoteLoading] = useState(true);
   const [journalEntries, setJournalEntries] = useState([]);
   const [streakLoading, setStreakLoading] = useState(true);
   const [streakError, setStreakError] = useState("");
@@ -156,6 +166,44 @@ export default function Dashboard() {
     }
 
     fetchStreakEntries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchQuote() {
+      setQuoteLoading(true);
+      try {
+        const resp = await fetch(MOTIVATION_API);
+        if (!resp.ok) {
+          throw new Error(`Quote fetch failed: ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (cancelled) return;
+        setQuote({
+          content: data?.content || "Keep going—you’re closer than you think.",
+          author: data?.author || "",
+        });
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Motivation quote fetch failed", err);
+        const fallback = FALLBACK_QUOTES[Math.floor(Math.random() * FALLBACK_QUOTES.length)];
+        setQuote({
+          content: fallback.content,
+          author: fallback.author || "",
+        });
+      } finally {
+        if (!cancelled) {
+          setQuoteLoading(false);
+        }
+      }
+    }
+
+    fetchQuote();
 
     return () => {
       cancelled = true;
@@ -262,6 +310,56 @@ export default function Dashboard() {
             <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
               Use the habits page to track your goals and visit your profile to update your preferences.
             </p>
+            <div className="mt-6 rounded-2xl border border-emerald-100/80 bg-emerald-50/70 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/50">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                    Motivation boost
+                  </p>
+                  <p className="mt-2 text-base font-medium text-emerald-900 dark:text-emerald-50">
+                    {quoteLoading ? "Loading a fresh quote..." : quote.content || "Keep going."}
+                  </p>
+                  {quoteLoading ? null : quote.author && quote.author !== "Unknown" ? (
+                    <p className="mt-1 text-sm text-emerald-800/80 dark:text-emerald-200/80">
+                      — {quote.author}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // trigger a new quote on demand
+                    const refresh = async () => {
+                      setQuoteLoading(true);
+                      try {
+                        const resp = await fetch(MOTIVATION_API);
+                        if (!resp.ok) throw new Error(`Quote fetch failed: ${resp.status}`);
+                        const data = await resp.json();
+                        setQuote({
+                          content: data?.content || "Keep going—you’re closer than you think.",
+                          author: data?.author || "",
+                        });
+                      } catch (err) {
+                        console.error("Motivation quote fetch failed", err);
+                        const fallback =
+                          FALLBACK_QUOTES[Math.floor(Math.random() * FALLBACK_QUOTES.length)];
+                        setQuote({
+                          content: fallback.content,
+                          author: fallback.author || "",
+                        });
+                      } finally {
+                        setQuoteLoading(false);
+                      }
+                    };
+                    refresh();
+                  }}
+                  className="rounded-full border border-emerald-200/70 bg-white/70 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 dark:border-emerald-700/70 dark:bg-emerald-900/60 dark:text-emerald-200 dark:hover:bg-emerald-800/70"
+                  disabled={quoteLoading}
+              >
+                {quoteLoading ? "Refreshing…" : "New quote"}
+              </button>
+            </div>
+            </div>
           </div>
         </section>
 
