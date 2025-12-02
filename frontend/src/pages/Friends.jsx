@@ -20,6 +20,14 @@ const primaryButton =
 const secondaryButton =
   "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-medium text-slate-700 transition focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:text-slate-200";
 
+const FRIEND_NUDGE_TEMPLATES = [
+  "High-five, {name}! Your habit streak is inspiring.",
+  "Shoutout to {name} for keeping the momentum—let’s go!",
+  "Cheering you on, {name}! One day at a time.",
+  "{name}, your consistency is paying off. Keep pushing!",
+  "Quick boost for {name}: you’ve got this.",
+];
+
 function formatDate(value) {
   if (!value) return "";
   try {
@@ -91,8 +99,18 @@ export default function Friends() {
   const [submitting, setSubmitting] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [friendHabits, setFriendHabits] = useState({});
+  const [nudgeCopied, setNudgeCopied] = useState(false);
 
   const hasPending = useMemo(() => !!incoming.length || !!outgoing.length, [incoming.length, outgoing.length]);
+  const friendNudge = useMemo(() => {
+    if (!friends.length) return null;
+    const friend = friends[Math.floor(Math.random() * friends.length)];
+    const template = FRIEND_NUDGE_TEMPLATES[Math.floor(Math.random() * FRIEND_NUDGE_TEMPLATES.length)];
+    return {
+      ...friend,
+      message: template.replace("{name}", friend?.name || "a friend"),
+    };
+  }, [friends]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -138,6 +156,21 @@ export default function Friends() {
       setError(message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCopyNudge = async (message) => {
+    setNotice("");
+    setNudgeCopied(false);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message);
+        setNudgeCopied(true);
+        setNotice("Copied! Drop this in a text or DM.");
+      }
+    } catch (err) {
+      console.error("Copy failed", err);
+      setError("Could not copy message. Try again.");
     }
   };
 
@@ -276,6 +309,50 @@ export default function Friends() {
           </p>
         </div>
       </header>
+
+      <section className={baseCard}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">High-five a Friend</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Send a quick boost to someone in your circle.
+            </p>
+          </div>
+          <span className="rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-900/50 dark:text-emerald-200">
+            Quick nudge
+          </span>
+        </div>
+
+        {!friendNudge ? (
+          <p className="mt-4 rounded-2xl border border-dashed border-emerald-200/70 bg-emerald-50/60 p-4 text-sm text-slate-600 dark:border-emerald-700/50 dark:bg-emerald-900/40 dark:text-slate-300">
+            Add a friend to send them a boost.
+          </p>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4 shadow-sm dark:border-emerald-700/60 dark:bg-emerald-900/40">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                  To: {friendNudge.name || friendNudge.email || "Your friend"}
+                </p>
+                <p className="mt-1 text-sm text-emerald-900 dark:text-emerald-50">{friendNudge.message}</p>
+                {friendNudge.email ? (
+                  <p className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-200/80">{friendNudge.email}</p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCopyNudge(friendNudge.message)}
+                className="rounded-full border border-emerald-200/70 bg-white/70 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 dark:border-emerald-700/70 dark:bg-emerald-900/60 dark:text-emerald-200 dark:hover:bg-emerald-800/70"
+              >
+                {nudgeCopied ? "Copied!" : "Copy message"}
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-emerald-800/70 dark:text-emerald-200/70">
+              Paste this into a text or DM to brighten their day.
+            </p>
+          </div>
+        )}
+      </section>
 
       {(error || notice) && (
         <div className="space-y-2">
