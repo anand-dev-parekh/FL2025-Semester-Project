@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthNavbar from "../components/AuthNavbar";
 import { http } from "../api/http";
 import { listJournalEntries, saveJournalEntry } from "../api/journal";
 import { requestWiseAdvice } from "../api/ai";
 import wizardImg from "../assets/wizard_2d.jpg";
+
+const XP_PER_LEVEL = 100;
 
 const COMPLETION_OPTIONS = [
   {
@@ -73,6 +75,68 @@ function formatCompletion(value) {
   return option ? option.label : "Unknown";
 }
 
+function celebrate({ message }) {
+  if (typeof document === "undefined") return;
+  const root = document.createElement("div");
+  root.style.position = "fixed";
+  root.style.inset = "0";
+  root.style.pointerEvents = "none";
+  root.style.zIndex = "9999";
+  root.style.overflow = "hidden";
+
+  const badge = document.createElement("div");
+  badge.textContent = message;
+  badge.style.position = "absolute";
+  badge.style.left = "50%";
+  badge.style.top = "15%";
+  badge.style.transform = "translateX(-50%)";
+  badge.style.padding = "12px 18px";
+  badge.style.borderRadius = "999px";
+  badge.style.background = "rgba(16, 185, 129, 0.92)";
+  badge.style.color = "#ecfdf3";
+  badge.style.fontWeight = "700";
+  badge.style.boxShadow = "0 12px 35px rgba(16, 185, 129, 0.35)";
+  badge.style.backdropFilter = "blur(6px)";
+  root.appendChild(badge);
+
+  const colors = ["#10b981", "#34d399", "#f97316", "#22c55e", "#a7f3d0"];
+  const count = 60;
+  for (let i = 0; i < count; i += 1) {
+    const dot = document.createElement("span");
+    const size = Math.max(6, Math.random() * 10);
+    dot.style.position = "absolute";
+    dot.style.left = "50%";
+    dot.style.top = "15%";
+    dot.style.width = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.borderRadius = "50%";
+    dot.style.background = colors[i % colors.length];
+    dot.style.opacity = "0.9";
+    const angle = Math.random() * Math.PI * 2;
+    const velocity = 12 + Math.random() * 14;
+    const dx = Math.cos(angle) * velocity;
+    const dy = Math.sin(angle) * velocity;
+    const duration = 900 + Math.random() * 400;
+    dot.animate(
+      [
+        { transform: "translate(-50%, -50%) scale(1)", opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.4)`, opacity: 0 },
+      ],
+      { duration, easing: "ease-out", fill: "forwards" },
+    );
+    root.appendChild(dot);
+  }
+
+  document.body.appendChild(root);
+  setTimeout(() => root.remove(), 1500);
+}
+
+function broadcastJournalEntries(entries) {
+  if (typeof window === "undefined") return;
+  const detail = Array.isArray(entries) ? entries.map((e) => ({ ...e })) : [];
+  window.dispatchEvent(new CustomEvent("journal:entriesChange", { detail }));
+}
+
 export default function Journal() {
   const [goals, setGoals] = useState([]);
   const [goalsLoading, setGoalsLoading] = useState(true);
@@ -93,6 +157,7 @@ export default function Journal() {
   const [wizardError, setWizardError] = useState("");
   const [wizardLoading, setWizardLoading] = useState(false);
   const [wizardContext, setWizardContext] = useState(null);
+  const prevTotalXpRef = useRef(null);
 
   const selectedGoal = useMemo(
     () => goals.find((goal) => goal.id === selectedGoalId) || null,
@@ -105,6 +170,19 @@ export default function Journal() {
     try {
       const data = await http("/api/goals");
       const goalList = Array.isArray(data) ? data : [];
+      const newTotalXp = goalList.reduce((acc, goal) => {
+        const value = Number(goal?.xp);
+        return acc + (Number.isFinite(value) ? value : 0);
+      }, 0);
+      const prevTotalXp = prevTotalXpRef.current ?? null;
+      if (prevTotalXp !== null) {
+        const prevLevel = Math.floor(prevTotalXp / XP_PER_LEVEL) + 1;
+        const newLevel = Math.floor(newTotalXp / XP_PER_LEVEL) + 1;
+        if (newLevel > prevLevel) {
+          celebrate({ message: `Level up! Level ${newLevel} 🏆` });
+        }
+      }
+      prevTotalXpRef.current = newTotalXp;
       setGoals(goalList);
       if (goalList.length) {
         setSelectedGoalId((current) => (current ?? goalList[0].id));
@@ -142,11 +220,14 @@ export default function Journal() {
           from: thirtyDaysAgoIso(),
           to: todayIso(),
         });
-        setEntries(Array.isArray(response) ? response : []);
+        const incoming = Array.isArray(response) ? response : [];
+        setEntries(incoming);
+        broadcastJournalEntries(incoming);
       } catch (err) {
         console.error(err);
         setEntriesError("Unable to load journal entries for this habit.");
         setEntries([]);
+        broadcastJournalEntries([]);
       } finally {
         setEntriesLoading(false);
       }
@@ -279,8 +360,12 @@ export default function Journal() {
       if (entry) {
         setEntries((prev) => {
           const others = prev.filter((item) => item.id !== entry.id);
-          return [...others, entry].sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
+          const updated = [...others, entry].sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
+          broadcastJournalEntries(updated);
+          return updated;
         });
+      } else {
+        broadcastJournalEntries(entries);
       }
 
       await refreshGoals({ dispatch: true });
