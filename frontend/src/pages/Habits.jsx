@@ -119,8 +119,19 @@ export default function HabitsPage() {
   const habitsById = useMemo(() => {
     const m = new Map();
     for (const h of habits) m.set(h.id, h);
+    for (const g of goals) {
+      if (g?.habit?.id && !m.has(g.habit.id)) {
+        m.set(g.habit.id, g.habit);
+      }
+    }
     return m;
-  }, [habits]);
+  }, [habits, goals]);
+
+  const filterHabitOptions = useMemo(() => {
+    const values = Array.from(habitsById.values());
+    values.sort((a, b) => (a?.name || "").localeCompare(b?.name || ""));
+    return values;
+  }, [habitsById]);
 
   // filter + search
   const filtered = useMemo(() => {
@@ -250,7 +261,7 @@ export default function HabitsPage() {
               className={`${inputClasses} appearance-none`}
             >
               <option value="">All habits</option>
-              {habits.map((h) => (
+              {filterHabitOptions.map((h) => (
                 <option key={h.id} value={String(h.id)} title={h.description || ""}>
                   {h.name}
                 </option>

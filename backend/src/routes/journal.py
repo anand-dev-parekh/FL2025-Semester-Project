@@ -223,7 +223,7 @@ def upsert_entry():
 
                 health_row = None
                 health_value = None
-                # If this goal is HealthKit-backed and we have data for the day, override XP from metrics
+                # If this goal is HealthKit-backed, XP comes only from HealthKit data.
                 if uses_healthkit and goal_health_metric in HEALTH_METRIC_KEYS:
                     cur.execute(
                         """
@@ -237,12 +237,12 @@ def upsert_entry():
                     if health_row:
                         health_value = _health_value_from_row(goal_health_metric, health_row[:3])
                         xp_delta, completion_level, _ = calculate_health_xp(health_value, goal_target_value)
-                        # If the user didn't write anything, leave a short audit note.
                         if not reflection:
                             unit = metric_unit(goal_health_metric) or ""
                             reflection = f"Auto-tracked from HealthKit: {health_value} {unit} toward a goal of {goal_target_value} {unit}."
                     else:
-                        xp_delta = COMPLETION_TO_XP[completion_level]
+                        xp_delta = COMPLETION_TO_XP["missed"]
+                        completion_level = "missed"
                 else:
                     xp_delta = COMPLETION_TO_XP[completion_level]
 

@@ -4,8 +4,14 @@ from flask import Blueprint, jsonify, request
 from tools.auth_helper import session_user
 from tools.database import db_pool
 from tools.healthkit_goal_helper import calculate_health_xp, HEALTH_METRIC_KEYS, metric_unit
+from tools.healthkit_goal_helper import HEALTHKIT_HABIT_METRICS
 
 health_blueprint = Blueprint("health", __name__, url_prefix="/api/health")
+HEALTHKIT_DEFAULT_TARGETS = {
+    "steps": 8000,
+    "exercise_minutes": 30,
+    "sleep_minutes": 480,
+}
 
 
 def _parse_records(payload):
@@ -186,6 +192,125 @@ def upsert_daily_health():
                     )
             _sync_healthkit_goals(conn, user["id"], records)
         return jsonify({"updated": len(records)}), 200
+    finally:
+        db_pool.putconn(conn)
+
+
+@health_blueprint.route("/enable", methods=["POST"])
+def enable_healthkit_goals():
+    """
+    Create or update default HealthKit-backed goals (steps/exercise/sleep) for the current user.
+    """
+    user = session_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = db_pool.getconn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, lower(name) AS name
+                    FROM habits
+                    WHERE lower(name) IN %s
+                    """,
+                    (tuple(HEALTHKIT_HABIT_METRICS.keys()),),
+                )
+                habits = {row[1]: row[0] for row in cur.fetchall()}
+
+                missing = [name for name in HEALTHKIT_HABIT_METRICS.keys() if name not in habits]
+                if missing:
+                    return (
+                        jsonify(
+                            {
+                                "error": "Required HealthKit habits are missing.",
+                                "missing": missing,
+                            }
+                        ),
+                        500,
+                    )
+
+                created = []
+                for habit_name, meta in HEALTHKIT_HABIT_METRICS.items():
+                    metric_key = meta["metric"]
+                    target = HEALTHKIT_DEFAULT_TARGETS.get(metric_key, 0)
+                    habit_id = habits[habit_name]
+                    goal_text = ""
+                    if metric_key == "steps":
+                        goal_text = f"Walk {target} steps per day."
+                    elif metric_key == "exercise_minutes":
+                        goal_text = f"Get {target} active minutes daily."
+                    elif metric_key == "sleep_minutes":
+                        goal_text = f"Sleep {(target / 60):.1f} hours each night."
+                    else:
+                        goal_text = f"Track your {metric_key} daily."
+
+                    cur.execute(
+                        """
+                        SELECT id FROM goals
+                        WHERE user_id = %s AND habit_id = %s AND uses_healthkit = TRUE
+                        """,
+                        (user["id"], habit_id),
+                    )
+                    existing_goal = cur.fetchone()
+
+                    if existing_goal:
+                        cur.execute(
+                            """
+                            UPDATE goals
+                            SET goal_text = %s,
+                                health_metric = %s,
+                                target_value = %s,
+                                target_unit = %s,
+                                uses_healthkit = TRUE,
+                                completed = FALSE
+                            WHERE id = %s
+                            RETURNING id, habit_id, goal_text, xp, completed, uses_healthkit, health_metric, target_value, target_unit, created_at
+                            """,
+                            (
+                                goal_text,
+                                metric_key,
+                                target,
+                                metric_unit(metric_key),
+                                existing_goal[0],
+                            ),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            INSERT INTO goals (user_id, habit_id, goal_text, xp, completed, uses_healthkit, health_metric, target_value, target_unit)
+                            VALUES (%s, %s, %s, 0, FALSE, TRUE, %s, %s, %s)
+                            RETURNING id, habit_id, goal_text, xp, completed, uses_healthkit, health_metric, target_value, target_unit, created_at
+                            """,
+                            (
+                                user["id"],
+                                habit_id,
+                                goal_text,
+                                metric_key,
+                                target,
+                                metric_unit(metric_key),
+                            ),
+                        )
+                    created.append(cur.fetchone())
+
+        goals_payload = []
+        for row in created:
+            goals_payload.append(
+                {
+                    "id": row[0],
+                    "habit_id": row[1],
+                    "goal_text": row[2],
+                    "xp": row[3],
+                    "completed": row[4],
+                    "uses_healthkit": row[5],
+                    "health_metric": row[6],
+                    "target_value": row[7],
+                    "target_unit": row[8],
+                    "created_at": row[9].isoformat() if row[9] else None,
+                }
+            )
+        return jsonify({"goals": goals_payload}), 200
     finally:
         db_pool.putconn(conn)
 

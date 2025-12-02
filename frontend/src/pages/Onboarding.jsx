@@ -81,6 +81,8 @@ const HEALTH_DEFAULT_TARGETS = HEALTH_GOAL_CONFIG.reduce((acc, item) => {
   return acc;
 }, {});
 
+const EXCLUDED_HEALTH_HABITS = ["steps", "exercise", "sleep well"];
+
 export default function Onboarding() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
@@ -106,6 +108,14 @@ export default function Onboarding() {
   const [healthTargets, setHealthTargets] = useState(HEALTH_DEFAULT_TARGETS);
   const [healthSaving, setHealthSaving] = useState(false);
   const [healthError, setHealthError] = useState("");
+
+  const visibleHabits = useMemo(
+    () =>
+      habits.filter(
+        (h) => !EXCLUDED_HEALTH_HABITS.includes((h.name || "").trim().toLowerCase())
+      ),
+    [habits]
+  );
 
   const totalSteps = STEP_META.length;
   const redirectTarget = useMemo(() => {
@@ -137,11 +147,14 @@ export default function Onboarding() {
       setHabitsLoading(true);
       setHabitsError("");
       try {
-        const data = await http("/api/habits");
+        const data = await http("/api/habits?include_healthkit=1");
         if (cancelled) return;
         const list = Array.isArray(data) ? data : [];
         setHabits(list);
-        setSelectedHabitId((prev) => prev || (list[0] ? String(list[0].id) : ""));
+        const firstVisible = list.find(
+          (h) => !EXCLUDED_HEALTH_HABITS.includes((h.name || "").trim().toLowerCase())
+        );
+        setSelectedHabitId((prev) => prev || (firstVisible ? String(firstVisible.id) : ""));
       } catch (err) {
         console.error(err);
         if (!cancelled) {
@@ -289,7 +302,7 @@ export default function Onboarding() {
       setGoalError("Let’s start with up to three goals. You can add more later from the Habits page.");
       return;
     }
-    if (!habits.length) {
+    if (!visibleHabits.length) {
       setGoalError("Habits aren’t available yet, so you can skip this step.");
       return;
     }
@@ -359,7 +372,7 @@ export default function Onboarding() {
   };
 
   const proceedFromGoals = () => {
-    const hasHabits = habits.length > 0;
+    const hasHabits = visibleHabits.length > 0;
     const canContinue = ((!hasHabits && !habitsLoading) || goals.length > 0) && !goalsLoading;
     if (canContinue) {
       setGoalError("");
@@ -615,20 +628,20 @@ export default function Onboarding() {
             <p className="text-sm text-slate-600 dark:text-slate-300">Loading habit ideas…</p>
           ) : habitsError ? (
             <p className="text-sm text-amber-600 dark:text-amber-300">{habitsError}</p>
-          ) : habits.length ? (
+          ) : visibleHabits.length ? (
             <div className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Pick a habit
-                  <select
-                    className={`${inputClasses} appearance-none`}
-                    value={selectedHabitId}
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Pick a habit
+                <select
+                  className={`${inputClasses} appearance-none`}
+                  value={selectedHabitId}
                     onChange={(event) => {
                       setSelectedHabitId(event.target.value);
                       setGoalError("");
                     }}
                   >
-                    {habits.map((habit) => (
+                    {visibleHabits.map((habit) => (
                       <option key={habit.id} value={habit.id}>
                         {habit.name}
                       </option>

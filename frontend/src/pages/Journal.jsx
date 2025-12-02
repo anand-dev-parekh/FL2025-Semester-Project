@@ -454,53 +454,53 @@ export default function Journal() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
-                <span>How did today go?</span>
-                <input
-                  type="range"
-                  min="0"
-                  max={COMPLETION_OPTIONS.length - 1}
-                  step="1"
-                  value={selectedCompletionIndex}
-                  onChange={(event) => {
-                    const index = Number(event.target.value);
-                    const next = COMPLETION_OPTIONS[index];
-                    setCompletionLevel(next ? next.value : COMPLETION_OPTIONS[1].value);
-                  }}
-                  disabled={hasHealthData}
-                  className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-                  style={sliderFillStyle}
-                />
-                <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-                  {COMPLETION_OPTIONS.map((option, index) => (
-                    <span
-                      key={option.value}
-                      className={
-                        index === selectedCompletionIndex
-                          ? "rounded-full border border-emerald-300/70 bg-emerald-100 px-3 py-1 text-center text-emerald-700 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200"
-                          : "rounded-full border border-transparent bg-slate-100 px-3 py-1 text-center dark:bg-slate-800/60"
-                      }
-                    >
-                      {option.label}
-                    </span>
-                  ))}
-                </div>
-                {hasHealthData ? (
-                  <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
-                    Completion is locked to your HealthKit data for this date.
-                  </p>
-                ) : null}
-              </label>
+              {selectedGoalIsHealth ? null : (
+                <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <span>How did today go?</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={COMPLETION_OPTIONS.length - 1}
+                    step="1"
+                    value={selectedCompletionIndex}
+                    onChange={(event) => {
+                      const index = Number(event.target.value);
+                      const next = COMPLETION_OPTIONS[index];
+                      setCompletionLevel(next ? next.value : COMPLETION_OPTIONS[1].value);
+                    }}
+                    className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                    style={sliderFillStyle}
+                  />
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {COMPLETION_OPTIONS.map((option, index) => (
+                      <span
+                        key={option.value}
+                        className={
+                          index === selectedCompletionIndex
+                            ? "rounded-full border border-emerald-300/70 bg-emerald-100 px-3 py-1 text-center text-emerald-700 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200"
+                            : "rounded-full border border-transparent bg-slate-100 px-3 py-1 text-center dark:bg-slate-800/60"
+                        }
+                      >
+                        {option.label}
+                      </span>
+                    ))}
+                  </div>
+                </label>
+              )}
               <div className="flex min-w-[12rem] flex-col gap-1 rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
                 <span className="font-medium text-emerald-700 dark:text-emerald-300">
                   {hasHealthData
                     ? `HealthKit • Earns ${computedXp} XP`
-                    : `${selectedCompletion.label} • Earns ${selectedCompletion.xp} XP`}
+                    : selectedGoalIsHealth
+                      ? "HealthKit entry"
+                      : `${selectedCompletion.label} • Earns ${selectedCompletion.xp} XP`}
                 </span>
                 <span className="text-xs text-slate-600 dark:text-slate-300">
                   {hasHealthData
                     ? "XP is based on synced data for this date."
-                    : selectedCompletion.helper}
+                    : selectedGoalIsHealth
+                      ? "HealthKit goals disable manual completion until data is synced."
+                      : selectedCompletion.helper}
                 </span>
               </div>
             </div>
