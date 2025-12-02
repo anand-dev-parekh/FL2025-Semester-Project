@@ -47,6 +47,10 @@ CREATE TABLE IF NOT EXISTS goals (
   goal_text    TEXT NOT NULL,
   xp           INTEGER NOT NULL DEFAULT 0,
   completed    BOOLEAN NOT NULL DEFAULT FALSE,
+  uses_healthkit BOOLEAN NOT NULL DEFAULT FALSE,
+  health_metric  TEXT CHECK (health_metric IN ('steps','exercise_minutes','sleep_minutes')),
+  target_value   INTEGER CHECK (target_value IS NULL OR target_value >= 0),
+  target_unit    TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 -- Helpful FKs indexes (Postgres doesn’t auto-index FKs)

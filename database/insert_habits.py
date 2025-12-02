@@ -20,6 +20,7 @@ DB_CONFIG = {
 
 HABITS = [
     ("Exercise", "Engage in physical activity to strengthen body and mind."),
+    ("Steps", "Track your daily step count to stay active through movement."),
     ("Healthy Eating", "Make conscious food choices that support well-being."),
     ("Hydration", "Drink enough water to stay energized and focused."),
     ("Sleep Well", "Maintain a consistent and restful sleep schedule."),

@@ -10,6 +10,12 @@ const inputClasses =
 const buttonBase =
   "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
 
+const HEALTH_HABIT_CONFIG = {
+  exercise: { metric: "exercise_minutes", unit: "minutes", defaultTarget: 30 },
+  "sleep well": { metric: "sleep_minutes", unit: "minutes", defaultTarget: 480 },
+  steps: { metric: "steps", unit: "steps", defaultTarget: 8000 },
+};
+
 export default function HabitsPage() {
   // server state
   const [habits, setHabits] = useState([]);
@@ -92,21 +98,19 @@ export default function HabitsPage() {
     }
   };
 
-  const onEditGoalText = async (id, newText) => {
-    const trimmed = newText.trim();
-    if (!trimmed) return;
+  const onSaveGoal = async (id, updates) => {
     const prev = goals;
-    setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, goal_text: trimmed } : g))); // optimistic
+    setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, ...updates } : g))); // optimistic
     try {
       const updated = await http(`/api/goals/${id}`, {
         method: "PATCH",
-        body: { goal_text: trimmed },
+        body: updates,
       });
       const upd = updated?.goal ?? updated;
       setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, ...upd } : g)));
     } catch (e) {
       console.error(e);
-      alert("Could not update goal text.");
+      alert("Could not update goal.");
       setGoals(prev); // revert
     }
   };
@@ -294,7 +298,7 @@ export default function HabitsPage() {
                   habitName={habit?.name || ""}
                   habitDescription={habit?.description || ""}
                   onDelete={() => onDeleteGoal(g.id)}
-                  onSaveText={(txt) => onEditGoalText(g.id, txt)}
+                  onSave={(updates) => onSaveGoal(g.id, updates)}
                 />
               ))}
             </ul>
@@ -306,12 +310,59 @@ export default function HabitsPage() {
   );
 }
 
-function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
+function GoalItem({ goal, habitName, habitDescription, onDelete, onSave }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(goal.goal_text || "");
+  const config = HEALTH_HABIT_CONFIG[(habitName || "").toLowerCase()] || null;
+  const [usesHealthkit, setUsesHealthkit] = useState(goal.uses_healthkit ?? !!config);
+  const [targetValue, setTargetValue] = useState(
+    goal.target_value ?? config?.defaultTarget ?? 0
+  );
 
   const buttonBase =
     "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
+
+  const formatTarget = () => {
+    if (!config || !goal.target_value) return null;
+    if (config.metric === "sleep_minutes") {
+      return `${(goal.target_value / 60).toFixed(1)} hrs/night`;
+    }
+    if (config.metric === "exercise_minutes") {
+      return `${goal.target_value} active min/day`;
+    }
+    if (config.metric === "steps") {
+      return `${goal.target_value.toLocaleString()} steps/day`;
+    }
+    return `${goal.target_value} ${config.unit || ""}`;
+  };
+
+  const handleSave = () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const payload = { goal_text: trimmed };
+
+    if (config) {
+      if (usesHealthkit) {
+        const numericTarget = Number(targetValue);
+        if (!Number.isFinite(numericTarget) || numericTarget <= 0) {
+          alert("Add a numeric target for this HealthKit-backed goal.");
+          return;
+        }
+        payload.uses_healthkit = true;
+        payload.target_value = numericTarget;
+        payload.health_metric = config.metric;
+        payload.target_unit = config.unit;
+      } else {
+        payload.uses_healthkit = false;
+        payload.target_value = null;
+        payload.health_metric = null;
+        payload.target_unit = config?.unit || null;
+      }
+    }
+
+    if (onSave) onSave(payload);
+    setEditing(false);
+  };
 
   return (
     <li className="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-lg transition-colors duration-300 backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-900/70">
@@ -326,8 +377,18 @@ function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
           ) : (
             goal.goal_text
           )}
-          <div className="mt-1 text-xs font-normal text-slate-500 dark:text-slate-400">
-            Habit: {habitName}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+            <span>Habit: {habitName}</span>
+            {goal.uses_healthkit ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200">
+                HealthKit
+              </span>
+            ) : null}
+            {goal.target_value && formatTarget() ? (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
+                Target: {formatTarget()}
+              </span>
+            ) : null}
           </div>
           {habitDescription ? (
             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -341,14 +402,40 @@ function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
         </div>
       </div>
 
+      {editing && config ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              checked={usesHealthkit}
+              onChange={(event) => setUsesHealthkit(event.target.checked)}
+              className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-400 dark:border-emerald-600 dark:bg-slate-900"
+            />
+            <span>Track automatically with HealthKit</span>
+          </label>
+          {usesHealthkit ? (
+            <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span>Daily target ({config.unit})</span>
+              <input
+                type="number"
+                min="0"
+                value={targetValue}
+                onChange={(event) => setTargetValue(event.target.value)}
+                className={inputClasses}
+              />
+              <span className="mt-1 text-xs font-normal text-slate-500 dark:text-slate-400">
+                We’ll pull data from HealthKit and award XP based on this target.
+              </span>
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="mt-6 flex flex-wrap gap-3">
         {editing ? (
           <>
             <button
-              onClick={() => {
-                if (text.trim() && text.trim() !== goal.goal_text) onSaveText(text);
-                setEditing(false);
-              }}
+              onClick={handleSave}
               className={`${buttonBase} border border-emerald-300/70 bg-emerald-400/80 text-emerald-950 hover:bg-emerald-300/80`}
               type="button"
             >

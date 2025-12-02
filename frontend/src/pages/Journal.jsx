@@ -73,6 +73,17 @@ function formatCompletion(value) {
   return option ? option.label : "Unknown";
 }
 
+function formatHealthValue(metric, value) {
+  if (value === null || value === undefined) return "";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  const key = String(metric || "").toLowerCase();
+  if (key === "sleep_minutes") return `${(numeric / 60).toFixed(1)} hrs`;
+  if (key === "exercise_minutes") return `${numeric} min`;
+  if (key === "steps") return `${numeric.toLocaleString()} steps`;
+  return `${numeric}`;
+}
+
 export default function Journal() {
   const [goals, setGoals] = useState([]);
   const [goalsLoading, setGoalsLoading] = useState(true);
@@ -98,6 +109,16 @@ export default function Journal() {
     () => goals.find((goal) => goal.id === selectedGoalId) || null,
     [goals, selectedGoalId],
   );
+  const selectedEntry = useMemo(
+    () => findEntry(entries, selectedDate) || null,
+    [entries, selectedDate],
+  );
+  const selectedGoalIsHealth = Boolean(selectedGoal?.uses_healthkit && selectedGoal?.health_metric);
+  const healthValue = selectedEntry?.health_value ?? null;
+  const healthTarget = selectedGoal?.target_value ?? null;
+  const healthMetric = selectedGoal?.health_metric ?? null;
+  const hasHealthData =
+    selectedGoalIsHealth && healthValue !== undefined && healthValue !== null;
 
   const refreshGoals = useCallback(async (opts = { dispatch: false }) => {
     setGoalsLoading(true);
@@ -161,10 +182,9 @@ export default function Journal() {
   }, [loadEntries, selectedGoalId]);
 
   useEffect(() => {
-    const entry = findEntry(entries, selectedDate);
-    if (entry) {
-      setReflection(entry.reflection || "");
-      const level = entry.completion_level || inferCompletionLevel(entry.xp_delta);
+    if (selectedEntry) {
+      setReflection(selectedEntry.reflection || "");
+      const level = selectedEntry.completion_level || inferCompletionLevel(selectedEntry.xp_delta);
       setCompletionLevel(level);
     } else {
       setReflection("");
@@ -172,7 +192,7 @@ export default function Journal() {
     }
     setSaveNotice("");
     setSaveError("");
-  }, [entries, selectedDate]);
+  }, [selectedEntry]);
 
   const handleGoalChange = (event) => {
     const value = Number(event.target.value);
@@ -190,6 +210,14 @@ export default function Journal() {
 
   const selectedCompletion =
     COMPLETION_OPTIONS[selectedCompletionIndex] || COMPLETION_OPTIONS[1];
+
+  const computedXp = hasHealthData ? selectedEntry?.xp_delta ?? 0 : selectedCompletion.xp;
+  const healthProgressPercent = useMemo(() => {
+    if (!hasHealthData || !healthTarget) return null;
+    const ratio = Number(healthValue) / Number(healthTarget || 1);
+    if (!Number.isFinite(ratio)) return null;
+    return Math.round(Math.max(0, ratio) * 100);
+  }, [hasHealthData, healthTarget, healthValue]);
 
   const sliderFillStyle = useMemo(() => {
     const maxIndex = COMPLETION_OPTIONS.length - 1 || 1;
@@ -343,6 +371,37 @@ export default function Journal() {
               </label>
             </div>
 
+            {selectedGoalIsHealth ? (
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4 text-sm shadow-sm dark:border-emerald-700/50 dark:bg-emerald-950/40">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+                      HealthKit tracking
+                    </p>
+                    {hasHealthData ? (
+                      <p className="text-emerald-800 dark:text-emerald-200">
+                        {formatHealthValue(healthMetric, healthValue)} vs. goal{" "}
+                        {formatHealthValue(
+                          healthMetric,
+                          healthMetric === "sleep_minutes" ? healthTarget : healthTarget,
+                        )}{" "}
+                        ({healthProgressPercent ?? 0}% of goal)
+                      </p>
+                    ) : (
+                      <p className="text-emerald-800 dark:text-emerald-200">
+                        No HealthKit data for this date yet. You can still log manually below.
+                      </p>
+                    )}
+                  </div>
+                  {hasHealthData ? (
+                    <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm dark:bg-emerald-900/50 dark:text-emerald-200">
+                      Earned {computedXp} XP
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
               <span>Reflection</span>
               <textarea
@@ -408,6 +467,7 @@ export default function Journal() {
                     const next = COMPLETION_OPTIONS[index];
                     setCompletionLevel(next ? next.value : COMPLETION_OPTIONS[1].value);
                   }}
+                  disabled={hasHealthData}
                   className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                   style={sliderFillStyle}
                 />
@@ -425,13 +485,22 @@ export default function Journal() {
                     </span>
                   ))}
                 </div>
+                {hasHealthData ? (
+                  <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                    Completion is locked to your HealthKit data for this date.
+                  </p>
+                ) : null}
               </label>
               <div className="flex min-w-[12rem] flex-col gap-1 rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
                 <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                  {selectedCompletion.label} • Earns {selectedCompletion.xp} XP
+                  {hasHealthData
+                    ? `HealthKit • Earns ${computedXp} XP`
+                    : `${selectedCompletion.label} • Earns ${selectedCompletion.xp} XP`}
                 </span>
                 <span className="text-xs text-slate-600 dark:text-slate-300">
-                  {selectedCompletion.helper}
+                  {hasHealthData
+                    ? "XP is based on synced data for this date."
+                    : selectedCompletion.helper}
                 </span>
               </div>
             </div>
@@ -494,6 +563,12 @@ export default function Journal() {
                           {formatCompletion(entry.completion_level)} · {entry.xp_delta} XP | Goal total {entry.goal_xp} XP
                         </span>
                       </div>
+                      {entry.health_value !== null && entry.health_value !== undefined && entry.health_metric ? (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                          HealthKit: {formatHealthValue(entry.health_metric, entry.health_value)} vs goal{" "}
+                          {formatHealthValue(entry.health_metric, entry.target_value || healthTarget)}
+                        </p>
+                      ) : null}
                       {entry.reflection ? (
                         <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
                           {entry.reflection}

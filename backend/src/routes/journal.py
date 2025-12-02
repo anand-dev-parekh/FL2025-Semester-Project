@@ -3,6 +3,7 @@ from datetime import date as date_cls
 from flask import Blueprint, jsonify, request
 from tools.auth_helper import ensure_auth
 from tools.database import db_pool
+from tools.healthkit_goal_helper import calculate_health_xp, HEALTH_METRIC_KEYS, metric_unit
 
 journal_blueprint = Blueprint("journal", __name__, url_prefix="/api/journal")
 
@@ -12,6 +13,11 @@ COMPLETION_TO_XP = {
     "complete": 10,
 }
 DEFAULT_COMPLETION_LEVEL = "partial"
+HEALTH_VALUE_MAP = {
+    "steps": 0,
+    "exercise_minutes": 1,
+    "sleep_minutes": 2,
+}
 
 
 def _parse_date(value):
@@ -36,7 +42,33 @@ def _normalize_completion_level(value):
     return level
 
 
+def _health_value_from_row(health_metric, row):
+    if not health_metric or row is None:
+        return None
+    metric_key = str(health_metric).strip().lower()
+    idx = HEALTH_VALUE_MAP.get(metric_key)
+    if idx is None:
+        return None
+    try:
+        return row[idx]
+    except IndexError:
+        return None
+
+
 def _entry_payload(row):
+    health_metric = row[12]
+    # row[16:19] are steps, exercise_minutes, sleep_minutes from the LEFT JOIN
+    raw_health_values = row[16:19]
+    health_value = _health_value_from_row(health_metric, raw_health_values)
+    target_value = row[14]
+    target_unit = row[15]
+    health_ratio = None
+    if target_value and health_value is not None:
+        try:
+            health_ratio = float(health_value) / float(target_value)
+        except (TypeError, ValueError, ZeroDivisionError):
+            health_ratio = None
+
     return {
         "id": row[0],
         "goal_id": row[1],
@@ -50,6 +82,13 @@ def _entry_payload(row):
         "created_at": row[9].isoformat() if row[9] else None,
         "updated_at": row[10].isoformat() if row[10] else None,
         "goal_xp": row[11],
+        "uses_healthkit": row[12],
+        "health_metric": health_metric,
+        "target_value": target_value,
+        "target_unit": target_unit,
+        "health_value": health_value,
+        "health_source": row[19],
+        "health_ratio": health_ratio,
     }
 
 
@@ -96,10 +135,19 @@ def list_entries():
             je.xp_delta,
             je.created_at,
             je.updated_at,
-            g.xp
+            g.xp,
+            g.uses_healthkit,
+            g.health_metric,
+            g.target_value,
+            g.target_unit,
+            hm.steps,
+            hm.exercise_minutes,
+            hm.sleep_minutes,
+            hm.source
         FROM journal_entries je
         JOIN goals g ON g.id = je.goal_id
         JOIN habits h ON h.id = g.habit_id
+        LEFT JOIN user_health_metrics hm ON hm.user_id = je.user_id AND hm.metric_date = je.entry_date
         WHERE {where}
         ORDER BY je.entry_date DESC, je.id DESC
     """.format(where=" AND ".join(where_clauses))
@@ -155,15 +203,13 @@ def upsert_entry():
             },
         ), 400
 
-    xp_delta = COMPLETION_TO_XP[completion_level]
-
     conn = db_pool.getconn()
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, user_id
+                    SELECT id, user_id, habit_id, uses_healthkit, health_metric, target_value, target_unit
                     FROM goals
                     WHERE id = %s
                     """,
@@ -172,6 +218,33 @@ def upsert_entry():
                 goal_row = cur.fetchone()
                 if not goal_row or goal_row[1] != user["id"]:
                     return jsonify({"error": "Goal not found"}), 404
+
+                _, _, habit_id, uses_healthkit, goal_health_metric, goal_target_value, goal_target_unit = goal_row
+
+                health_row = None
+                health_value = None
+                # If this goal is HealthKit-backed and we have data for the day, override XP from metrics
+                if uses_healthkit and goal_health_metric in HEALTH_METRIC_KEYS:
+                    cur.execute(
+                        """
+                        SELECT steps, exercise_minutes, sleep_minutes, source
+                        FROM user_health_metrics
+                        WHERE user_id = %s AND metric_date = %s
+                        """,
+                        (user["id"], entry_date),
+                    )
+                    health_row = cur.fetchone()
+                    if health_row:
+                        health_value = _health_value_from_row(goal_health_metric, health_row[:3])
+                        xp_delta, completion_level, _ = calculate_health_xp(health_value, goal_target_value)
+                        # If the user didn't write anything, leave a short audit note.
+                        if not reflection:
+                            unit = metric_unit(goal_health_metric) or ""
+                            reflection = f"Auto-tracked from HealthKit: {health_value} {unit} toward a goal of {goal_target_value} {unit}."
+                    else:
+                        xp_delta = COMPLETION_TO_XP[completion_level]
+                else:
+                    xp_delta = COMPLETION_TO_XP[completion_level]
 
                 cur.execute(
                     """
@@ -219,7 +292,7 @@ def upsert_entry():
                     UPDATE goals
                     SET xp = GREATEST(0, xp + %s)
                     WHERE id = %s AND user_id = %s
-                    RETURNING xp, habit_id, goal_text
+                    RETURNING xp, habit_id, goal_text, uses_healthkit, health_metric, target_value, target_unit
                     """,
                     (xp_diff, goal_id, user["id"]),
                 )
@@ -242,10 +315,19 @@ def upsert_entry():
                         je.xp_delta,
                         je.created_at,
                         je.updated_at,
-                        g.xp
+                        g.xp,
+                        g.uses_healthkit,
+                        g.health_metric,
+                        g.target_value,
+                        g.target_unit,
+                        hm.steps,
+                        hm.exercise_minutes,
+                        hm.sleep_minutes,
+                        hm.source
                     FROM journal_entries je
                     JOIN goals g ON g.id = je.goal_id
                     JOIN habits h ON h.id = g.habit_id
+                    LEFT JOIN user_health_metrics hm ON hm.user_id = je.user_id AND hm.metric_date = je.entry_date
                     WHERE je.id = %s
                     """,
                     (entry_id,),
@@ -261,6 +343,10 @@ def upsert_entry():
                 "habit_id": goal_update[1],
                 "goal_text": goal_update[2],
                 "xp": goal_update[0],
+                "uses_healthkit": goal_update[3],
+                "health_metric": goal_update[4],
+                "target_value": goal_update[5],
+                "target_unit": goal_update[6],
             },
         }
         return jsonify(response_body), status_code

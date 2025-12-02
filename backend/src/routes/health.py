@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 
 from tools.auth_helper import session_user
 from tools.database import db_pool
+from tools.healthkit_goal_helper import calculate_health_xp, HEALTH_METRIC_KEYS, metric_unit
 
 health_blueprint = Blueprint("health", __name__, url_prefix="/api/health")
 
@@ -51,6 +52,107 @@ def _parse_records(payload):
     return parsed
 
 
+def _sync_healthkit_goals(conn, user_id, records):
+    """Upsert journal entries for HealthKit-backed goals based on the new records."""
+    if not records:
+        return
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, health_metric, target_value, target_unit
+            FROM goals
+            WHERE user_id = %s
+              AND uses_healthkit = TRUE
+              AND health_metric IS NOT NULL
+              AND target_value IS NOT NULL
+            """,
+            (user_id,),
+        )
+        goal_rows = cur.fetchall()
+
+    if not goal_rows:
+        return
+
+    goals = [
+        {
+            "id": row[0],
+            "health_metric": row[1],
+            "target_value": row[2],
+            "target_unit": row[3],
+        }
+        for row in goal_rows
+        if row[1] in HEALTH_METRIC_KEYS
+    ]
+    if not goals:
+        return
+
+    for metric_date, steps, exercise_minutes, sleep_minutes, source in records:
+        metrics = {
+            "steps": steps,
+            "exercise_minutes": exercise_minutes,
+            "sleep_minutes": sleep_minutes,
+        }
+        for goal in goals:
+            metric_key = goal["health_metric"]
+            actual_value = metrics.get(metric_key)
+            xp_delta, completion_level, _ = calculate_health_xp(actual_value, goal["target_value"])
+            auto_note = (
+                f"Auto-tracked from HealthKit: {actual_value} {metric_unit(metric_key) or ''} "
+                f"toward a goal of {goal['target_value']} {goal['target_unit'] or metric_unit(metric_key) or ''}."
+            ).strip()
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, xp_delta, reflection
+                    FROM journal_entries
+                    WHERE user_id = %s AND goal_id = %s AND entry_date = %s
+                    FOR UPDATE
+                    """,
+                    (user_id, goal["id"], metric_date),
+                )
+                existing = cur.fetchone()
+
+                xp_diff = xp_delta
+                entry_id = None
+                if existing:
+                    entry_id = existing[0]
+                    prev_xp = existing[1] or 0
+                    xp_diff = xp_delta - prev_xp
+                    reflection = existing[2] or auto_note
+                    cur.execute(
+                        """
+                        UPDATE journal_entries
+                        SET reflection = %s,
+                            xp_delta = %s,
+                            completion_level = %s,
+                            updated_at = now()
+                        WHERE id = %s
+                        """,
+                        (reflection, xp_delta, completion_level, entry_id),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO journal_entries (user_id, goal_id, entry_date, reflection, xp_delta, completion_level)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (user_id, goal["id"], metric_date, auto_note, xp_delta, completion_level),
+                    )
+                    entry_id = cur.fetchone()[0]
+
+                cur.execute(
+                    """
+                    UPDATE goals
+                    SET xp = GREATEST(0, xp + %s)
+                    WHERE id = %s AND user_id = %s
+                    """,
+                    (xp_diff, goal["id"], user_id),
+                )
+
+
 @health_blueprint.route("/daily", methods=["POST"])
 def upsert_daily_health():
     user = session_user()
@@ -82,6 +184,7 @@ def upsert_daily_health():
                         """,
                         (user["id"], metric_date, steps, exercise_minutes, sleep_minutes, source),
                     )
+            _sync_healthkit_goals(conn, user["id"], records)
         return jsonify({"updated": len(records)}), 200
     finally:
         db_pool.putconn(conn)
