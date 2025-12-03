@@ -22,6 +22,9 @@ export default function HabitsPage() {
   // form state (create / update)
   const [habitId, setHabitId] = useState("");
   const [goalText, setGoalText] = useState("");
+  const [targetValue, setTargetValue] = useState("");
+  const [createUsesHealthkit, setCreateUsesHealthkit] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // filters (client-side convenience)
   const [filterHabit, setFilterHabit] = useState("");
@@ -42,8 +45,16 @@ export default function HabitsPage() {
         const [h, g] = await Promise.all([http("/api/habits"), http("/api/goals")]);
         setHabits(h || []);
         setGoals(Array.isArray(g) ? g : []);
-        if (!h?.length) setHabitId(""); // no habits yet
-        else setHabitId(String(h[0].id));
+        if (!h?.length) {
+          setHabitId(""); // no habits yet
+          setTargetValue("");
+          setCreateUsesHealthkit(false);
+        } else {
+          const first = h[0];
+          setHabitId(String(first.id));
+          setTargetValue(first.default_target ?? "");
+          setCreateUsesHealthkit(Boolean(first.health_metric));
+        }
       } catch (e) {
         console.error(e);
         setErr("Failed to load habits/goals.");
@@ -63,20 +74,56 @@ export default function HabitsPage() {
     );
   }, [goals]);
 
+  useEffect(() => {
+    const selected = habits.find((h) => String(h.id) === String(habitId));
+    if (selected) {
+      setTargetValue(selected.default_target ?? "");
+      setCreateUsesHealthkit(Boolean(selected.health_metric));
+    } else {
+      setTargetValue("");
+      setCreateUsesHealthkit(false);
+    }
+  }, [habitId, habits]);
+
   const onCreateGoal = async (e) => {
     e.preventDefault();
-    if (!habitId || !goalText.trim()) return;
+    setFormError("");
+    const selected = habits.find((h) => String(h.id) === String(habitId));
+    const trimmedGoal = goalText.trim();
+    const numericTarget = Number(targetValue);
+
+    if (!habitId || !trimmedGoal) {
+      setFormError("Pick a habit and describe your numeric goal.");
+      return;
+    }
+    if (!Number.isFinite(numericTarget) || numericTarget <= 0) {
+      setFormError("Enter a numeric target greater than zero.");
+      return;
+    }
+
+    const payload = {
+      habit_id: Number(habitId),
+      goal_text: trimmedGoal,
+      target_value: Math.round(numericTarget),
+      target_unit: selected?.unit || null,
+    };
+    if (selected?.health_metric) {
+      payload.uses_healthkit = !!createUsesHealthkit;
+      payload.health_metric = createUsesHealthkit ? selected.health_metric : null;
+    }
+
     try {
       const created = await http("/api/goals", {
         method: "POST",
-        body: { habit_id: Number(habitId), goal_text: goalText.trim() },
+        body: payload,
       });
       const newGoal = created?.goal ?? created;
       setGoals((gs) => [newGoal, ...gs]);
       setGoalText("");
+      setTargetValue(selected?.default_target ?? numericTarget);
     } catch (e) {
       console.error(e);
-      alert("Could not create goal.");
+      setFormError(e?.body?.trim?.() || "Could not create goal.");
     }
   };
 
@@ -92,21 +139,19 @@ export default function HabitsPage() {
     }
   };
 
-  const onEditGoalText = async (id, newText) => {
-    const trimmed = newText.trim();
-    if (!trimmed) return;
+  const onSaveGoal = async (id, updates) => {
     const prev = goals;
-    setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, goal_text: trimmed } : g))); // optimistic
+    setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, ...updates } : g))); // optimistic
     try {
       const updated = await http(`/api/goals/${id}`, {
         method: "PATCH",
-        body: { goal_text: trimmed },
+        body: updates,
       });
       const upd = updated?.goal ?? updated;
       setGoals((gs) => gs.map((g) => (g.id === id ? { ...g, ...upd } : g)));
     } catch (e) {
       console.error(e);
-      alert("Could not update goal text.");
+      alert("Could not update goal.");
       setGoals(prev); // revert
     }
   };
@@ -115,8 +160,19 @@ export default function HabitsPage() {
   const habitsById = useMemo(() => {
     const m = new Map();
     for (const h of habits) m.set(h.id, h);
+    for (const g of goals) {
+      if (g?.habit?.id && !m.has(g.habit.id)) {
+        m.set(g.habit.id, g.habit);
+      }
+    }
     return m;
-  }, [habits]);
+  }, [habits, goals]);
+
+  const filterHabitOptions = useMemo(() => {
+    const values = Array.from(habitsById.values());
+    values.sort((a, b) => (a?.name || "").localeCompare(b?.name || ""));
+    return values;
+  }, [habitsById]);
 
   // filter + search
   const filtered = useMemo(() => {
@@ -195,7 +251,10 @@ export default function HabitsPage() {
             <span>Habit</span>
             <select
               value={habitId}
-              onChange={(e) => setHabitId(e.target.value)}
+              onChange={(e) => {
+                setHabitId(e.target.value);
+                setFormError("");
+              }}
               className={`${inputClasses} appearance-none`}
               required
             >
@@ -205,7 +264,6 @@ export default function HabitsPage() {
                 </option>
               ))}
             </select>
-            {/* Description preview for selected habit */}
             {selectedHabit?.description ? (
               <em className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                 {selectedHabit.description}
@@ -214,16 +272,53 @@ export default function HabitsPage() {
           </label>
 
           <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
-            <span>Goal</span>
+            <span>Daily target ({selectedHabit?.unit || "units"})</span>
             <input
-              value={goalText}
-              onChange={(e) => setGoalText(e.target.value)}
-              placeholder="e.g., Run 3x per week"
+              type="number"
+              min="0"
+              value={targetValue}
+              onChange={(e) => {
+                setTargetValue(e.target.value);
+                setFormError("");
+              }}
+              placeholder={selectedHabit?.default_target ? String(selectedHabit.default_target) : "Add a target"}
               className={inputClasses}
               required
             />
+            <span className="mt-1 text-xs font-normal text-slate-500 dark:text-slate-400">
+              Quantitative targets unlock XP and charts. Aim for a clear numeric goal.
+            </span>
+            {selectedHabit?.health_metric ? (
+              <label className="mt-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                <input
+                  type="checkbox"
+                  checked={createUsesHealthkit}
+                  onChange={(event) => setCreateUsesHealthkit(event.target.checked)}
+                  className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-400 dark:border-emerald-600 dark:bg-slate-900"
+                />
+                Auto-track with HealthKit
+              </label>
+            ) : null}
           </label>
         </div>
+
+        <label className="mt-6 flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+          <span>Goal description</span>
+            <input
+              value={goalText}
+              onChange={(e) => {
+                setGoalText(e.target.value);
+                setFormError("");
+              }}
+              placeholder={`e.g., Hit ${selectedHabit?.default_target ?? "your"} ${selectedHabit?.unit || "unit"} target daily`}
+              className={inputClasses}
+              required
+          />
+        </label>
+
+        {formError ? (
+          <p className="mt-4 text-sm text-rose-600 dark:text-rose-400">{formError}</p>
+        ) : null}
 
         <div className="mt-8 flex justify-end">
           <button
@@ -246,7 +341,7 @@ export default function HabitsPage() {
               className={`${inputClasses} appearance-none`}
             >
               <option value="">All habits</option>
-              {habits.map((h) => (
+              {filterHabitOptions.map((h) => (
                 <option key={h.id} value={String(h.id)} title={h.description || ""}>
                   {h.name}
                 </option>
@@ -293,8 +388,10 @@ export default function HabitsPage() {
                   goal={g}
                   habitName={habit?.name || ""}
                   habitDescription={habit?.description || ""}
+                  habitUnit={habit?.unit || ""}
+                  habitMetric={habit?.health_metric || null}
                   onDelete={() => onDeleteGoal(g.id)}
-                  onSaveText={(txt) => onEditGoalText(g.id, txt)}
+                  onSave={(updates) => onSaveGoal(g.id, updates)}
                 />
               ))}
             </ul>
@@ -306,12 +403,62 @@ export default function HabitsPage() {
   );
 }
 
-function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
+function GoalItem({ goal, habitName, habitDescription, habitUnit, habitMetric, onDelete, onSave }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(goal.goal_text || "");
+  const supportsHealthkit = Boolean(habitMetric);
+  const [usesHealthkit, setUsesHealthkit] = useState(
+    supportsHealthkit ? Boolean(goal.uses_healthkit) : false
+  );
+  const [targetValue, setTargetValue] = useState(
+    goal.target_value ?? goal.habit?.default_target ?? 0
+  );
+  const unit = goal.target_unit || habitUnit || goal.habit?.unit || "";
+  const metricKey = goal.health_metric || habitMetric || "";
+
+  useEffect(() => {
+    setText(goal.goal_text || "");
+    setTargetValue(goal.target_value ?? goal.habit?.default_target ?? 0);
+    setUsesHealthkit(supportsHealthkit ? Boolean(goal.uses_healthkit) : false);
+  }, [goal, supportsHealthkit]);
 
   const buttonBase =
     "inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
+
+  const formatTarget = () => {
+    if (!targetValue) return null;
+    if ((metricKey || "").toLowerCase() === "sleep_minutes") {
+      return `${(Number(targetValue) / 60).toFixed(1)} hrs/night`;
+    }
+    if ((metricKey || "").toLowerCase() === "steps") {
+      return `${Number(targetValue).toLocaleString()} steps/day`;
+    }
+    return `${Number(targetValue).toLocaleString()} ${unit || ""}`.trim();
+  };
+
+  const handleSave = () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const numericTarget = Number(targetValue);
+    if (!Number.isFinite(numericTarget) || numericTarget <= 0) {
+      alert("Add a numeric target greater than zero for this goal.");
+      return;
+    }
+    const payload = {
+      goal_text: trimmed,
+      target_value: Math.round(numericTarget),
+      target_unit: unit || habitUnit || null,
+      uses_healthkit: supportsHealthkit && usesHealthkit,
+    };
+    if (supportsHealthkit && usesHealthkit) {
+      payload.health_metric = metricKey || habitMetric;
+    } else {
+      payload.health_metric = null;
+    }
+
+    if (onSave) onSave(payload);
+    setEditing(false);
+  };
 
   return (
     <li className="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-lg transition-colors duration-300 backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-900/70">
@@ -326,8 +473,18 @@ function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
           ) : (
             goal.goal_text
           )}
-          <div className="mt-1 text-xs font-normal text-slate-500 dark:text-slate-400">
-            Habit: {habitName}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+            <span>Habit: {habitName}</span>
+            {goal.uses_healthkit ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200">
+                HealthKit
+              </span>
+            ) : null}
+            {Number(targetValue) > 0 && formatTarget() ? (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
+                Target: {formatTarget()}
+              </span>
+            ) : null}
           </div>
           {habitDescription ? (
             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -341,14 +498,40 @@ function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
         </div>
       </div>
 
+      {editing ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+            <span>Daily target ({unit || "units"})</span>
+            <input
+              type="number"
+              min="0"
+              value={targetValue}
+              onChange={(event) => setTargetValue(event.target.value)}
+              className={inputClasses}
+            />
+            <span className="mt-1 text-xs font-normal text-slate-500 dark:text-slate-400">
+              XP scales linearly up to 10 when you meet or exceed this target.
+            </span>
+          </label>
+          {supportsHealthkit ? (
+            <label className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+              <input
+                type="checkbox"
+                checked={usesHealthkit}
+                onChange={(event) => setUsesHealthkit(event.target.checked)}
+                className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-400 dark:border-emerald-600 dark:bg-slate-900"
+              />
+              <span>Auto-track with HealthKit</span>
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="mt-6 flex flex-wrap gap-3">
         {editing ? (
           <>
             <button
-              onClick={() => {
-                if (text.trim() && text.trim() !== goal.goal_text) onSaveText(text);
-                setEditing(false);
-              }}
+              onClick={handleSave}
               className={`${buttonBase} border border-emerald-300/70 bg-emerald-400/80 text-emerald-950 hover:bg-emerald-300/80`}
               type="button"
             >
@@ -357,6 +540,8 @@ function GoalItem({ goal, habitName, habitDescription, onDelete, onSaveText }) {
             <button
               onClick={() => {
                 setText(goal.goal_text || "");
+                setTargetValue(goal.target_value ?? goal.habit?.default_target ?? 0);
+                setUsesHealthkit(supportsHealthkit ? Boolean(goal.uses_healthkit) : false);
                 setEditing(false);
               }}
               className={`${buttonBase} border border-slate-200/70 bg-white/80 text-slate-700 hover:bg-slate-100/70 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200`}

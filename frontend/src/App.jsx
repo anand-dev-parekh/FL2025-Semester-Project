@@ -9,6 +9,7 @@ import SignIn from "./pages/SignIn";
 import Friends from "./pages/Friends";
 import Journal from "./pages/Journal";
 import Health from "./pages/Health";
+import Insights from "./pages/Insights";
 
 export default function App() {
   return (
@@ -62,6 +63,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Journal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/insights"
+            element={
+              <ProtectedRoute>
+                <Insights />
               </ProtectedRoute>
             }
           />

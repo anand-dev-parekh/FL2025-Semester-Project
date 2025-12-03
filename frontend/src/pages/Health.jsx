@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthNavbar from "../components/AuthNavbar";
-import { fetchDailyHealth } from "../api/health";
+import { fetchDailyHealth, enableHealthkitGoals } from "../api/health";
+import { http } from "../api/http";
 import { requestWiseAdvice } from "../api/ai";
 import wizardImg from "../assets/wizard_2d.jpg";
 
@@ -53,6 +54,9 @@ export default function Health() {
   const [wizardError, setWizardError] = useState("");
   const [wizardLoading, setWizardLoading] = useState(false);
   const [wizardContext, setWizardContext] = useState(null);
+  const [hasHealthGoals, setHasHealthGoals] = useState(false);
+  const [goalSyncError, setGoalSyncError] = useState("");
+  const [goalSyncLoading, setGoalSyncLoading] = useState(false);
 
   const summary = useMemo(() => {
     if (records.length === 0) {
@@ -104,6 +108,35 @@ export default function Health() {
   useEffect(() => {
     loadRecords(days);
   }, [days, loadRecords]);
+
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        const data = await http("/api/goals");
+        const list = Array.isArray(data) ? data : [];
+        setHasHealthGoals(list.some((g) => g?.uses_healthkit));
+      } catch (err) {
+        console.error("Unable to load goals for HealthKit status", err);
+      }
+    };
+    fetchGoals();
+  }, []);
+
+  const createHealthGoals = useCallback(async () => {
+    setGoalSyncLoading(true);
+    setGoalSyncError("");
+    try {
+      await enableHealthkitGoals();
+      setHasHealthGoals(true);
+    } catch (err) {
+      console.error("enableHealthkitGoals failed", err);
+      setGoalSyncError(
+        err?.body?.trim?.() || "Unable to create HealthKit habits right now."
+      );
+    } finally {
+      setGoalSyncLoading(false);
+    }
+  }, []);
 
   const summonWiseWizard = useCallback(async () => {
     if (!summary) {
@@ -212,6 +245,33 @@ export default function Health() {
             </div>
           ) : (
             <>
+              {!hasHealthGoals ? (
+                <div className="mt-6 rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-5 shadow-sm dark:border-indigo-500/40 dark:bg-indigo-900/40">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                        Connect Health habits
+                      </p>
+                      <p className="text-sm text-indigo-800/80 dark:text-indigo-200/80">
+                        We detected Health data. Add Steps, Exercise, and Sleep habits so they track
+                        automatically.
+                      </p>
+                      {goalSyncError ? (
+                        <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">{goalSyncError}</p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={createHealthGoals}
+                      disabled={goalSyncLoading}
+                      className="rounded-full border border-indigo-300 bg-white/80 px-4 py-2 text-sm font-semibold text-indigo-800 shadow-sm transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-100 dark:hover:bg-indigo-900/50"
+                    >
+                      {goalSyncLoading ? "Adding…" : "Add Health habits"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {summary ? (
                 <div className="mt-8 grid gap-4 sm:grid-cols-3">
                   <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4 text-emerald-800 shadow-sm dark:border-emerald-700/50 dark:bg-emerald-950/50 dark:text-emerald-200">

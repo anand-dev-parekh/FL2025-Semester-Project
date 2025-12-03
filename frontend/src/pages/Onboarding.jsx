@@ -46,6 +46,43 @@ const HIGHLIGHTS = [
   },
 ];
 
+const HEALTH_GOAL_CONFIG = [
+  {
+    key: "steps",
+    habitName: "Steps",
+    metric: "steps",
+    unit: "steps",
+    defaultTarget: 8000,
+    placeholder: "e.g., 8000 steps per day",
+    buildGoal: (target) => `Walk ${Number(target || 0).toLocaleString()} steps per day.`,
+  },
+  {
+    key: "exercise_minutes",
+    habitName: "Exercise",
+    metric: "exercise_minutes",
+    unit: "minutes",
+    defaultTarget: 30,
+    placeholder: "e.g., 30 active minutes daily",
+    buildGoal: (target) => `Get ${Number(target || 0)} minutes of exercise daily.`,
+  },
+  {
+    key: "sleep_minutes",
+    habitName: "Sleep Well",
+    metric: "sleep_minutes",
+    unit: "minutes",
+    defaultTarget: 480,
+    placeholder: "e.g., 8 hours per night",
+    buildGoal: (target) => `Sleep ${(Number(target || 0) / 60).toFixed(1)} hours each night.`,
+  },
+];
+
+const HEALTH_DEFAULT_TARGETS = HEALTH_GOAL_CONFIG.reduce((acc, item) => {
+  acc[item.key] = item.defaultTarget;
+  return acc;
+}, {});
+
+const EXCLUDED_HEALTH_HABITS = ["steps", "exercise", "sleep well"];
+
 export default function Onboarding() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
@@ -62,11 +99,24 @@ export default function Onboarding() {
   const [habitsError, setHabitsError] = useState("");
   const [selectedHabitId, setSelectedHabitId] = useState("");
   const [goalDraft, setGoalDraft] = useState("");
+  const [goalTarget, setGoalTarget] = useState("");
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalError, setGoalError] = useState("");
   const [goals, setGoals] = useState([]);
   const [goalsLoading, setGoalsLoading] = useState(true);
   const [deletingGoalId, setDeletingGoalId] = useState(null);
+  const [connectHealth, setConnectHealth] = useState(false);
+  const [healthTargets, setHealthTargets] = useState(HEALTH_DEFAULT_TARGETS);
+  const [healthSaving, setHealthSaving] = useState(false);
+  const [healthError, setHealthError] = useState("");
+
+  const visibleHabits = useMemo(
+    () =>
+      habits.filter(
+        (h) => !EXCLUDED_HEALTH_HABITS.includes((h.name || "").trim().toLowerCase())
+      ),
+    [habits]
+  );
 
   const totalSteps = STEP_META.length;
   const redirectTarget = useMemo(() => {
@@ -98,11 +148,14 @@ export default function Onboarding() {
       setHabitsLoading(true);
       setHabitsError("");
       try {
-        const data = await http("/api/habits");
+        const data = await http("/api/habits?include_healthkit=1");
         if (cancelled) return;
         const list = Array.isArray(data) ? data : [];
         setHabits(list);
-        setSelectedHabitId((prev) => prev || (list[0] ? String(list[0].id) : ""));
+        const firstVisible = list.find(
+          (h) => !EXCLUDED_HEALTH_HABITS.includes((h.name || "").trim().toLowerCase())
+        );
+        setSelectedHabitId((prev) => prev || (firstVisible ? String(firstVisible.id) : ""));
       } catch (err) {
         console.error(err);
         if (!cancelled) {
@@ -129,6 +182,27 @@ export default function Onboarding() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!goals.length) return;
+    setHealthTargets((prev) => {
+      const next = { ...prev };
+      HEALTH_GOAL_CONFIG.forEach((config) => {
+        const match = goals.find(
+          (g) =>
+            g.health_metric === config.metric ||
+            (g.habit?.name || "").toLowerCase() === config.habitName.toLowerCase()
+        );
+        if (match?.target_value) {
+          next[config.key] = match.target_value;
+        }
+      });
+      return next;
+    });
+    if (goals.some((g) => g.uses_healthkit)) {
+      setConnectHealth(true);
+    }
+  }, [goals]);
 
   const handleProfileSubmit = async (event) => {
     event.preventDefault();
@@ -160,13 +234,76 @@ export default function Onboarding() {
     }
   };
 
+  const handleAddHealthGoals = async () => {
+    if (healthSaving) return;
+    setHealthSaving(true);
+    setHealthError("");
+    setGoalError("");
+
+    try {
+      if (!habits.length) {
+        throw new Error("We need the shared habits to load before adding HealthKit goals.");
+      }
+
+      const updated = [];
+      for (const config of HEALTH_GOAL_CONFIG) {
+        const targetRaw = Number(healthTargets[config.key]);
+        if (!Number.isFinite(targetRaw) || targetRaw <= 0) {
+          throw new Error(`Please enter a valid target for ${config.habitName}.`);
+        }
+        const target =
+          config.key === "sleep_minutes" && targetRaw > 0 && targetRaw < 100
+            ? Math.round(targetRaw * 60) // allow people to type hours
+            : targetRaw;
+        const habit = habits.find(
+          (h) => (h.name || "").toLowerCase() === config.habitName.toLowerCase()
+        );
+        if (!habit) {
+          throw new Error(`Could not find the ${config.habitName} habit.`);
+        }
+
+        const goalText = config.buildGoal(target);
+        const existing = goals.find((g) => g.habit_id === habit.id);
+        const body = {
+          habit_id: habit.id,
+          goal_text: goalText,
+          uses_healthkit: true,
+          health_metric: config.metric,
+          target_value: target,
+          target_unit: config.unit,
+        };
+
+        const response = existing
+          ? await http(`/api/goals/${existing.id}`, { method: "PATCH", body })
+          : await http("/api/goals", { method: "POST", body });
+        const normalized = response?.goal ?? response;
+        updated.push({ habitId: habit.id, goal: normalized });
+      }
+
+      if (updated.length) {
+        setGoals((prev) => {
+          const filtered = prev.filter(
+            (goal) => !updated.some((item) => item.habitId === goal.habit_id)
+          );
+          return [...updated.map((item) => item.goal), ...filtered];
+        });
+        setConnectHealth(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setHealthError(err?.message || "Unable to add HealthKit-backed goals right now.");
+    } finally {
+      setHealthSaving(false);
+    }
+  };
+
   const handleAddGoal = async () => {
     if (goalSaving) return;
     if (goals.length >= 3) {
       setGoalError("Let’s start with up to three goals. You can add more later from the Habits page.");
       return;
     }
-    if (!habits.length) {
+    if (!visibleHabits.length) {
       setGoalError("Habits aren’t available yet, so you can skip this step.");
       return;
     }
@@ -179,6 +316,11 @@ export default function Onboarding() {
       setGoalError("Describe what success looks like for this habit.");
       return;
     }
+    const numericTarget = Number(goalTarget);
+    if (!Number.isFinite(numericTarget) || numericTarget <= 0) {
+      setGoalError("Add a numeric target greater than zero for this habit.");
+      return;
+    }
 
     setGoalSaving(true);
     setGoalError("");
@@ -188,11 +330,14 @@ export default function Onboarding() {
         body: {
           habit_id: Number(selectedHabitId),
           goal_text: trimmed,
+          target_value: Math.round(numericTarget),
+          target_unit: selectedHabit?.unit || null,
         },
       });
       const newGoal = created?.habit ? created : created?.goal ?? created;
       setGoals((prev) => [newGoal, ...prev]);
       setGoalDraft("");
+      setGoalTarget(selectedHabit?.default_target ?? goalTarget);
     } catch (err) {
       console.error(err);
       setGoalError("We couldn’t save that goal. Please try again.");
@@ -236,7 +381,7 @@ export default function Onboarding() {
   };
 
   const proceedFromGoals = () => {
-    const hasHabits = habits.length > 0;
+    const hasHabits = visibleHabits.length > 0;
     const canContinue = ((!hasHabits && !habitsLoading) || goals.length > 0) && !goalsLoading;
     if (canContinue) {
       setGoalError("");
@@ -251,6 +396,13 @@ export default function Onboarding() {
     () => habits.find((h) => String(h.id) === String(selectedHabitId)),
     [habits, selectedHabitId]
   );
+  useEffect(() => {
+    if (selectedHabit) {
+      setGoalTarget(selectedHabit.default_target ?? "");
+    } else {
+      setGoalTarget("");
+    }
+  }, [selectedHabit]);
   const orderedGoals = useMemo(() => {
     const list = goals.slice();
     list.sort((a, b) => {
@@ -260,11 +412,20 @@ export default function Onboarding() {
     });
     return list;
   }, [goals]);
+  const formatHealthTarget = (goal) => {
+    if (!goal?.uses_healthkit || !goal?.target_value) return "";
+    const metric = goal.health_metric;
+    if (metric === "sleep_minutes") return `${(goal.target_value / 60).toFixed(1)} hrs/night`;
+    if (metric === "exercise_minutes") return `${goal.target_value} min/day`;
+    if (metric === "steps") return `${goal.target_value.toLocaleString()} steps/day`;
+    return `${goal.target_value}`;
+  };
   const canContinueFromGoals =
     ((!habits.length && !habitsLoading) || goals.length > 0) &&
     !goalSaving &&
     !deletingGoalId &&
-    !goalsLoading;
+    !goalsLoading &&
+    !healthSaving;
 
   return (
     <div className="flex flex-1 flex-col gap-10 pb-16">
@@ -390,29 +551,118 @@ export default function Onboarding() {
             </p>
           </div>
 
+          <div className="rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-5 shadow-sm dark:border-indigo-500/40 dark:bg-indigo-900/30">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                  Connect Apple Health?
+                </p>
+                <p className="text-xs text-indigo-800/80 dark:text-indigo-200/80">
+                  We can auto-track Steps, Exercise, and Sleep from HealthKit. Set clear, numeric
+                  goals and we’ll add them for you.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium text-indigo-900 dark:text-indigo-100">
+                <input
+                  type="checkbox"
+                  checked={connectHealth}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setConnectHealth(next);
+                    if (
+                      next &&
+                      !healthSaving &&
+                      habits.length &&
+                      !goals.some((g) => g.uses_healthkit)
+                    ) {
+                      handleAddHealthGoals();
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-400 dark:border-indigo-600 dark:bg-indigo-900"
+                />
+                <span>Yes, sync HealthKit</span>
+              </label>
+            </div>
+
+            {connectHealth ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                {HEALTH_GOAL_CONFIG.map((config) => (
+                  <label
+                    key={config.key}
+                    className="flex flex-col rounded-2xl border border-white/40 bg-white/70 p-4 text-sm font-medium text-indigo-900 shadow-sm dark:border-indigo-700/50 dark:bg-indigo-950/40 dark:text-indigo-100"
+                  >
+                    <span>{config.habitName} goal</span>
+                    <input
+                      type="number"
+                      min="0"
+                      className={`${inputClasses} mt-2`}
+                      value={healthTargets[config.key] ?? ""}
+                      onChange={(event) =>
+                        setHealthTargets((prev) => ({
+                          ...prev,
+                          [config.key]: Number(event.target.value),
+                        }))
+                      }
+                      placeholder={config.placeholder}
+                    />
+                    <span className="mt-2 text-xs font-normal text-indigo-800/80 dark:text-indigo-200/80">
+                      {config.unit === "minutes"
+                        ? "Aim for minutes per day (sleep minutes = hours × 60)."
+                        : "Daily steps target."}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-indigo-800/80 dark:text-indigo-200/80">
+                Not ready yet? You can always connect later from the Habits page and still add goals
+                here manually.
+              </p>
+            )}
+
+            {healthError && (
+              <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{healthError}</p>
+            )}
+
+            <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+              <button
+                type="button"
+                onClick={handleAddHealthGoals}
+                disabled={!connectHealth || healthSaving}
+                className={`${buttonBase} border border-indigo-200/70 bg-white/90 text-indigo-800 hover:bg-white disabled:opacity-60 dark:border-indigo-600/50 dark:bg-indigo-950/60 dark:text-indigo-100 dark:hover:bg-indigo-900/40`}
+              >
+                {healthSaving ? "Saving…" : "Add HealthKit goals"}
+              </button>
+              <p className="text-xs text-indigo-800/80 dark:text-indigo-200/80">
+                We’ll add Steps, Exercise, and Sleep goals with your targets and auto-track them when
+                HealthKit data arrives.
+              </p>
+            </div>
+          </div>
+
           {habitsLoading ? (
             <p className="text-sm text-slate-600 dark:text-slate-300">Loading habit ideas…</p>
           ) : habitsError ? (
             <p className="text-sm text-amber-600 dark:text-amber-300">{habitsError}</p>
-          ) : habits.length ? (
+          ) : visibleHabits.length ? (
             <div className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Pick a habit
-                  <select
-                    className={`${inputClasses} appearance-none`}
-                    value={selectedHabitId}
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Pick a habit
+                <select
+                  className={`${inputClasses} appearance-none`}
+                  value={selectedHabitId}
                     onChange={(event) => {
                       setSelectedHabitId(event.target.value);
                       setGoalError("");
                     }}
                   >
-                    {habits.map((habit) => (
+                    {visibleHabits.map((habit) => (
                       <option key={habit.id} value={habit.id}>
                         {habit.name}
                       </option>
-                    ))}
-                  </select>
+                  ))}
+                </select>
                   {selectedHabit?.description && (
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       {selectedHabit.description}
@@ -421,18 +671,33 @@ export default function Onboarding() {
                 </label>
 
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Describe your goal
-                  <textarea
-                    className={`${inputClasses} min-h-[140px] resize-none`}
-                    value={goalDraft}
-                    onChange={(event) => {
-                      setGoalDraft(event.target.value);
-                      if (goalError) setGoalError("");
-                    }}
-                    placeholder="Example: Complete a 20-minute strength workout three times a week."
+                  Daily target ({selectedHabit?.unit || "units"})
+                  <input
+                    className={inputClasses}
+                    type="number"
+                    min="0"
+                    value={goalTarget}
+                    onChange={(event) => setGoalTarget(event.target.value)}
+                    placeholder={selectedHabit?.default_target ? String(selectedHabit.default_target) : "Add a number"}
                   />
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Quantitative goals earn XP linearly up to 10 when you hit this number.
+                  </p>
                 </label>
               </div>
+
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Describe your goal
+                <textarea
+                  className={`${inputClasses} min-h-[140px] resize-none`}
+                  value={goalDraft}
+                  onChange={(event) => {
+                    setGoalDraft(event.target.value);
+                    if (goalError) setGoalError("");
+                  }}
+                  placeholder="Example: Complete a 20-minute strength workout three times a week."
+                />
+              </label>
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
                 <button
@@ -480,6 +745,15 @@ export default function Onboarding() {
                       <p className="mt-1 text-xs uppercase tracking-[0.25em] text-emerald-700/70 dark:text-emerald-300/70">
                         Habit · {goal.habit?.name || "Untitled"}
                       </p>
+                      {goal.uses_healthkit ? (
+                        <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                          HealthKit target: {formatHealthTarget(goal)}
+                        </p>
+                      ) : goal.target_value ? (
+                        <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                          Target: {goal.target_value} {goal.target_unit || goal.habit?.unit || "units"}
+                        </p>
+                      ) : null}
                     </div>
                     <button
                       type="button"
@@ -554,6 +828,11 @@ export default function Onboarding() {
                     <p className="mt-1 text-xs uppercase tracking-[0.25em] text-emerald-700/70 dark:text-emerald-300/70">
                       Habit · {goal.habit?.name || "Untitled"}
                     </p>
+                    {goal.uses_healthkit ? (
+                      <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                        HealthKit target: {formatHealthTarget(goal)}
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>

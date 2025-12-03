@@ -5,27 +5,6 @@ import { listJournalEntries, saveJournalEntry } from "../api/journal";
 import { requestWiseAdvice } from "../api/ai";
 import wizardImg from "../assets/wizard_2d.jpg";
 
-const COMPLETION_OPTIONS = [
-  {
-    value: "missed",
-    label: "Skipped",
-    xp: 0,
-    helper: "Did not focus on this habit today.",
-  },
-  {
-    value: "partial",
-    label: "Partially Complete",
-    xp: 5,
-    helper: "You nearly followed the habit but missed a piece.",
-  },
-  {
-    value: "complete",
-    label: "Completed",
-    xp: 10,
-    helper: "Followed the habit as planned.",
-  },
-];
-
 const pageContainer =
   "rounded-3xl border border-white/60 bg-white/75 p-8 shadow-xl backdrop-blur-md transition-colors duration-500 dark:border-slate-800/70 dark:bg-slate-900/60";
 
@@ -61,16 +40,26 @@ function formatHabitLabel(goal) {
   return parts.join(" ");
 }
 
-function inferCompletionLevel(xpDelta) {
-  const numeric = Number(xpDelta || 0);
-  if (numeric >= 10) return "complete";
-  if (numeric <= 0) return "missed";
-  return "partial";
+function computeXpFromValue(value, target) {
+  if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) {
+    return { xp: 0, ratio: null };
+  }
+  const ratio = Math.max(0, value / target);
+  return { xp: Math.min(10, Math.round(ratio * 10)), ratio };
 }
 
-function formatCompletion(value) {
-  const option = COMPLETION_OPTIONS.find((item) => item.value === value);
-  return option ? option.label : "Unknown";
+function formatValue(metric, unit, value) {
+  if (value === null || value === undefined) return "";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  const key = String(metric || "").toLowerCase();
+  if (key === "sleep_minutes") return `${(numeric / 60).toFixed(1)} hrs`;
+  if (key === "exercise_minutes") return `${numeric} min`;
+  if (key === "steps") return `${numeric.toLocaleString()} steps`;
+  if ((unit || "").toLowerCase() === "oz") return `${numeric} oz`;
+  if ((unit || "").toLowerCase() === "dollars") return `$${numeric.toFixed(2)}`;
+  const label = unit ? unit : "units";
+  return `${numeric} ${label}`;
 }
 
 export default function Journal() {
@@ -85,7 +74,7 @@ export default function Journal() {
 
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [reflection, setReflection] = useState("");
-  const [completionLevel, setCompletionLevel] = useState(COMPLETION_OPTIONS[1].value);
+  const [valueInput, setValueInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -98,6 +87,30 @@ export default function Journal() {
     () => goals.find((goal) => goal.id === selectedGoalId) || null,
     [goals, selectedGoalId],
   );
+  const selectedEntry = useMemo(
+    () => findEntry(entries, selectedDate) || null,
+    [entries, selectedDate],
+  );
+  const selectedGoalIsHealth = Boolean(selectedGoal?.uses_healthkit && selectedGoal?.health_metric);
+  const healthValue = selectedEntry?.health_value ?? null;
+  const healthMetric = selectedGoal?.health_metric ?? null;
+  const hasHealthData =
+    selectedGoalIsHealth && healthValue !== undefined && healthValue !== null;
+  const targetValueRaw = selectedGoal?.target_value;
+  const targetValue = Number.isFinite(Number(targetValueRaw)) ? Number(targetValueRaw) : 0;
+  const targetUnit = selectedGoal?.target_unit || selectedGoal?.habit?.unit || "";
+  const manualNumericValue = Number(valueInput);
+  const hasManualValue = valueInput !== "" && Number.isFinite(manualNumericValue);
+  const valueForXp = selectedGoalIsHealth && hasHealthData
+    ? Number(healthValue)
+    : hasManualValue
+      ? manualNumericValue
+      : null;
+  const { xp: computedXp, ratio: progressRatio } = useMemo(
+    () => computeXpFromValue(valueForXp, targetValue),
+    [valueForXp, targetValue],
+  );
+  const progressPercent = progressRatio === null ? null : Math.round(Math.min(1, progressRatio) * 100);
 
   const refreshGoals = useCallback(async (opts = { dispatch: false }) => {
     setGoalsLoading(true);
@@ -161,18 +174,28 @@ export default function Journal() {
   }, [loadEntries, selectedGoalId]);
 
   useEffect(() => {
-    const entry = findEntry(entries, selectedDate);
-    if (entry) {
-      setReflection(entry.reflection || "");
-      const level = entry.completion_level || inferCompletionLevel(entry.xp_delta);
-      setCompletionLevel(level);
+    if (selectedEntry) {
+      setReflection(selectedEntry.reflection || "");
+      if (
+        selectedEntry.value_used !== undefined &&
+        selectedEntry.value_used !== null &&
+        selectedEntry.value_used !== ""
+      ) {
+        setValueInput(String(selectedEntry.value_used));
+      } else if (selectedEntry.numeric_value !== undefined && selectedEntry.numeric_value !== null) {
+        setValueInput(String(selectedEntry.numeric_value));
+      } else if (selectedEntry.health_value !== undefined && selectedEntry.health_value !== null) {
+        setValueInput(String(selectedEntry.health_value));
+      } else {
+        setValueInput("");
+      }
     } else {
       setReflection("");
-      setCompletionLevel(COMPLETION_OPTIONS[1].value);
+      setValueInput("");
     }
     setSaveNotice("");
     setSaveError("");
-  }, [entries, selectedDate]);
+  }, [selectedEntry]);
 
   const handleGoalChange = (event) => {
     const value = Number(event.target.value);
@@ -182,24 +205,6 @@ export default function Journal() {
   const handleDateChange = (event) => {
     setSelectedDate(event.target.value);
   };
-
-  const selectedCompletionIndex = useMemo(() => {
-    const idx = COMPLETION_OPTIONS.findIndex((option) => option.value === completionLevel);
-    return idx >= 0 ? idx : 1;
-  }, [completionLevel]);
-
-  const selectedCompletion =
-    COMPLETION_OPTIONS[selectedCompletionIndex] || COMPLETION_OPTIONS[1];
-
-  const sliderFillStyle = useMemo(() => {
-    const maxIndex = COMPLETION_OPTIONS.length - 1 || 1;
-    const percent = Math.max(0, Math.min(100, (selectedCompletionIndex / maxIndex) * 100));
-    const activeColor = "rgba(16, 185, 129, 0.85)";
-    const inactiveColor = "rgba(148, 163, 184, 0.35)";
-    return {
-      background: `linear-gradient(90deg, ${activeColor} 0%, ${activeColor} ${percent}%, ${inactiveColor} ${percent}%, ${inactiveColor} 100%)`,
-    };
-  }, [selectedCompletionIndex]);
 
   const recentEntries = useMemo(() => {
     const sorted = [...entries].sort((a, b) => {
@@ -216,6 +221,8 @@ export default function Journal() {
       setWizardError("Choose a habit so the Wise Wizard knows what to reflect on.");
       return;
     }
+    const unitLabel = targetUnit || selectedGoal?.habit?.unit || "units";
+    const todayValueForPrompt = Number.isFinite(valueForXp) ? valueForXp : null;
     setWizardLoading(true);
     setWizardAdvice("");
     setWizardError("");
@@ -223,12 +230,16 @@ export default function Journal() {
       const latestEntry = recentEntries[0];
       const promptParts = [
         `Habit: ${formatHabitLabel(selectedGoal) || "Unnamed habit"}.`,
-        `Today's completion level: ${formatCompletion(completionLevel)}.`,
+        targetValue
+          ? `Today's value: ${
+              todayValueForPrompt !== null ? `${todayValueForPrompt} ${unitLabel}` : "not logged yet"
+            } toward ${targetValue} ${unitLabel}. Estimated XP: ${computedXp}.`
+          : "Goal target is missing; ask the user to set one.",
         reflection?.trim()
           ? `User reflection: """${reflection.trim().slice(0, 400)}""".`
           : "User has not written a reflection yet.",
         latestEntry
-          ? `Most recent saved entry (${latestEntry.entry_date}) xp ${latestEntry.xp_delta} and reflection: """${(latestEntry.reflection || "").slice(0, 200)}""".`
+          ? `Most recent saved entry (${latestEntry.entry_date}) logged ${latestEntry.value_used ?? latestEntry.numeric_value ?? latestEntry.health_value ?? "no value"} ${latestEntry.target_unit || unitLabel} for ${latestEntry.xp_delta} XP. Reflection: """${(latestEntry.reflection || "").slice(0, 200)}""".`
           : null,
         "Offer 2-3 sentences of encouraging feedback or journaling prompts tailored to this habit.",
       ]
@@ -251,7 +262,7 @@ export default function Journal() {
     } finally {
       setWizardLoading(false);
     }
-  }, [selectedGoal, completionLevel, reflection, recentEntries, wizardContext]);
+  }, [selectedGoal, computedXp, reflection, recentEntries, targetUnit, targetValue, valueForXp, wizardContext]);
 
   const handleSave = async (event) => {
     event.preventDefault();
@@ -263,6 +274,22 @@ export default function Journal() {
       setSaveError("Pick a date for this entry.");
       return;
     }
+    if (!targetValue || !Number.isFinite(targetValue) || targetValue <= 0) {
+      setSaveError("This goal needs a numeric target before logging progress.");
+      return;
+    }
+
+    const numericValue =
+      selectedGoalIsHealth && hasHealthData
+        ? Number(healthValue)
+        : valueInput === ""
+          ? null
+          : Number(valueInput);
+    const requiresManualValue = !selectedGoalIsHealth || !hasHealthData;
+    if (requiresManualValue && (numericValue === null || !Number.isFinite(numericValue))) {
+      setSaveError("Enter a numeric value for this habit to earn XP.");
+      return;
+    }
 
     setSaving(true);
     setSaveError("");
@@ -272,7 +299,8 @@ export default function Journal() {
         goal_id: selectedGoalId,
         entry_date: selectedDate,
         reflection,
-        completion_level: completionLevel,
+        value: Number.isFinite(numericValue) ? numericValue : null,
+        value_unit: targetUnit,
       });
 
       const entry = payload?.entry;
@@ -281,6 +309,9 @@ export default function Journal() {
           const others = prev.filter((item) => item.id !== entry.id);
           return [...others, entry].sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
         });
+        if (entry.value_used !== undefined && entry.value_used !== null) {
+          setValueInput(String(entry.value_used));
+        }
       }
 
       await refreshGoals({ dispatch: true });
@@ -343,6 +374,28 @@ export default function Journal() {
               </label>
             </div>
 
+            {selectedGoalIsHealth ? (
+              <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 p-4 text-sm shadow-sm dark:border-emerald-700/50 dark:bg-emerald-950/40">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+                      HealthKit tracking
+                    </p>
+                    <p className="text-emerald-800 dark:text-emerald-200">
+                      {hasHealthData
+                        ? `Synced ${formatValue(healthMetric, targetUnit, healthValue)} vs. goal ${formatValue(healthMetric, targetUnit, targetValue)} (${progressPercent ?? 0}% of goal)`
+                        : "No HealthKit data for this date yet. You can still log the number manually below."}
+                    </p>
+                  </div>
+                  {valueForXp !== null ? (
+                    <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm dark:bg-emerald-900/50 dark:text-emerald-200">
+                      Earned {computedXp} XP
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
               <span>Reflection</span>
               <textarea
@@ -394,45 +447,44 @@ export default function Journal() {
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
-                <span>How did today go?</span>
-                <input
-                  type="range"
-                  min="0"
-                  max={COMPLETION_OPTIONS.length - 1}
-                  step="1"
-                  value={selectedCompletionIndex}
-                  onChange={(event) => {
-                    const index = Number(event.target.value);
-                    const next = COMPLETION_OPTIONS[index];
-                    setCompletionLevel(next ? next.value : COMPLETION_OPTIONS[1].value);
-                  }}
-                  className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-                  style={sliderFillStyle}
-                />
-                <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-                  {COMPLETION_OPTIONS.map((option, index) => (
-                    <span
-                      key={option.value}
-                      className={
-                        index === selectedCompletionIndex
-                          ? "rounded-full border border-emerald-300/70 bg-emerald-100 px-3 py-1 text-center text-emerald-700 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200"
-                          : "rounded-full border border-transparent bg-slate-100 px-3 py-1 text-center dark:bg-slate-800/60"
-                      }
-                    >
-                      {option.label}
+            <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-5 shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
+              <div className="grid gap-4 md:grid-cols-[1.2fr,0.8fr] md:items-center">
+                <label className="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <span>Today's value ({targetUnit || "units"})</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={valueInput}
+                    onChange={(event) => setValueInput(event.target.value)}
+                    disabled={selectedGoalIsHealth && hasHealthData}
+                    className={inputBase}
+                    placeholder="Enter the number you hit today"
+                  />
+                  <span className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    {selectedGoalIsHealth && hasHealthData
+                      ? "This value is synced from HealthKit. Update it in Apple Health to refresh here."
+                      : "Add today's number to log progress. Hitting the target awards 10 XP; everything below scales linearly."}
+                  </span>
+                </label>
+                <div className="flex flex-col gap-2 rounded-2xl border border-emerald-200/60 bg-emerald-50/60 p-4 text-sm shadow-inner dark:border-emerald-700/40 dark:bg-emerald-900/30">
+                  <div className="flex items-center justify-between font-semibold text-emerald-800 dark:text-emerald-100">
+                    <span>
+                      Goal: {targetValue ? `${targetValue} ${targetUnit || "units"}` : "Add a target"}
                     </span>
-                  ))}
+                    <span>{computedXp} XP</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-emerald-100 dark:bg-emerald-950/50">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, progressPercent ?? 0))}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                    {progressPercent !== null
+                      ? `Tracked ${valueForXp ?? "?"} / ${targetValue || "?"} ${targetUnit || "units"} (${progressPercent}% of goal).`
+                      : "Log a value to see progress toward your target."}
+                  </p>
                 </div>
-              </label>
-              <div className="flex min-w-[12rem] flex-col gap-1 rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-slate-800/60 dark:bg-slate-900/60">
-                <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                  {selectedCompletion.label} • Earns {selectedCompletion.xp} XP
-                </span>
-                <span className="text-xs text-slate-600 dark:text-slate-300">
-                  {selectedCompletion.helper}
-                </span>
               </div>
             </div>
 
@@ -491,9 +543,25 @@ export default function Journal() {
                           {entry.goal_text}
                         </span>
                         <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                          {formatCompletion(entry.completion_level)} · {entry.xp_delta} XP | Goal total {entry.goal_xp} XP
+                          {formatValue(
+                            entry.health_metric,
+                            entry.numeric_unit || entry.target_unit,
+                            entry.value_used ?? entry.numeric_value ?? entry.health_value,
+                          ) || "No value logged"}{" "}
+                          · {entry.xp_delta} XP | Goal total {entry.goal_xp} XP
                         </span>
                       </div>
+                      {entry.value_used !== null && entry.value_used !== undefined ? (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                          Logged{" "}
+                          {formatValue(
+                            entry.health_metric,
+                            entry.numeric_unit || entry.target_unit,
+                            entry.value_used ?? entry.numeric_value ?? entry.health_value,
+                          )}{" "}
+                          vs goal {formatValue(entry.health_metric, entry.target_unit, entry.target_value)}
+                        </p>
+                      ) : null}
                       {entry.reflection ? (
                         <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
                           {entry.reflection}
